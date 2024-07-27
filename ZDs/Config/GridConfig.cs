@@ -18,16 +18,16 @@ namespace ZDs.Config
         public string Name => "Grid";
         
         public bool ShowGrid = true;
-        public bool ShowGridCenterLine = false;
+        public bool ShowGridCenterLine = true;
         public bool GridDrawSegments = true;
         public bool GridDrawSegmentLines = true;
         public bool GridShowSecondsText = true;
-        public int GridLineWidth = 1;
-        public int GridLineHeight = 20;
+        public float GridLineWidth = 1;
+        public float GridLineHeight = 15;
         public ConfigColor GridLineColor = new ConfigColor(1f, 1f, 1f, 1f);
         public List<float> GridSegments = new List<float> { 10f, 30f, 60f, 120f };
         
-        public string GridFontKey = FontsManager.DefaultMediumFontKey;
+        public string GridFontKey = FontsManager.DefaultSmallFontKey;
         public int GridFontId = 0;
         
         public ConfigColor GridSegmentLabelColor = new ConfigColor(1f, 1f, 1f, 1f);
@@ -55,7 +55,7 @@ namespace ZDs.Config
                     if (ShowGridCenterLine)
                     {
                         DrawHelper.DrawNestIndicator(1);
-                        ImGui.DragInt("Line Thickness", ref GridLineWidth, 0.5f, 1, 5);
+                        ImGui.DragFloat("Line Thickness", ref GridLineWidth, 1f, 1, 5);
                         DrawHelper.DrawNestIndicator(1);
                         DrawHelper.DrawColorSelector("Line Color", ref GridLineColor);
                     }
@@ -70,7 +70,7 @@ namespace ZDs.Config
                         if (GridDrawSegmentLines)
                         {
                             DrawHelper.DrawNestIndicator(2);
-                            ImGui.DragInt("Line Height", ref GridLineHeight, 0.5f, 1, 5);
+                            ImGui.DragFloat("Line Height", ref GridLineHeight, 1f, 1, 50);
                         }
                         ImGui.NewLine();
                         DrawHelper.DrawNestIndicator(1);

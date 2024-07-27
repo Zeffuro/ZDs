@@ -16,7 +16,7 @@ namespace ZDs.Config
             set {}
         }
 
-        [JsonIgnore]
+        //[JsonIgnore]
         //private AboutPage AboutPage { get; } = new AboutPage();
 
         public GeneralConfig GeneralConfig { get; init; }

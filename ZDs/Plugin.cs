@@ -44,8 +44,6 @@ namespace ZDs
         public static string ConfigFileDir { get; private set; } = "";
         public static string ConfigFilePath { get; private set; } = "";
 
-        public static Settings Settings { get; private set; } = null!;
-        
         public static ZDsConfig Config { get; private set; } = null!;
 
         private static WindowSystem _windowSystem = null!;
@@ -171,6 +169,12 @@ namespace ZDs
         private void UpdateTimeline()
         {
             bool show = Config.GeneralConfig.ShowTimeline;
+
+            if (show == null)
+            {
+                return;
+            }
+                
             if (show)
             {
                 if (Config.GeneralConfig.ShowTimelineOnlyInCombat && !Condition[ConditionFlag.InCombat])

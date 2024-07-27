@@ -28,7 +28,7 @@ namespace ZDs.Windows
         {
             Flags = _baseFlags;
 
-            Size = new Vector2(560, 90);
+            Size = new Vector2(560, 120);
             SizeCondition = ImGuiCond.FirstUseEver;
 
             Position = new Vector2(200, 200);
@@ -86,9 +86,14 @@ namespace ZDs.Windows
             Vector2 defaultSize = new Vector2(Config.CooldownConfig.TimelineIconSize);
             uint defaultTextColor = Config.CooldownConfig.CooldownTextColor.Base;
             uint defaultTextOutlineColor = Config.CooldownConfig.CooldownTextOutlineColor.Base;
-
-            // Sort the list by cooldown ascending
-            var sortedList = list.OrderBy(item => item.Cooldown).ToList();
+            
+            // Sort the list by cooldownLeft, reversed if reverseOrder is true
+            var sortedList = list
+                             .Select(item => new { Item = item, CooldownLeft = item.Cooldown / 10 - (now - item.Time) })
+                             .OrderBy(x => Config.GeneralConfig.ReverseIconDrawOrder ? x.CooldownLeft : -x.CooldownLeft)
+                             .Select(x => x.Item)
+                             .ToList();
+            
             foreach (var item in sortedList)
             {
                 Vector2 iconSize = defaultSize;
