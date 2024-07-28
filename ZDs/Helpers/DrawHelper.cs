@@ -348,5 +348,26 @@ namespace ZDs.Helpers
                 ImGui.SetTooltip(message);
             }
         }
+        
+        public class WindowInteractionState
+        {
+            public bool Unlocked { get; private set; }
+            public bool Hovered { get; private set; }
+            public bool Dragging { get; private set; }
+            public bool Locked { get; private set; }
+            private bool _lastFrameWasDragging;
+            private bool _lastFrameWasUnlocked;
+
+            public void Update(Vector2 windowPos, Vector2 windowSize, bool locked)
+            {
+                Unlocked = !locked;
+                Hovered = ImGui.IsMouseHoveringRect(windowPos, windowPos + windowSize);
+                Dragging = _lastFrameWasDragging && ImGui.IsMouseDown(ImGuiMouseButton.Left);
+                Locked = (Unlocked && !_lastFrameWasUnlocked || !Hovered) && !Dragging;
+
+                _lastFrameWasDragging = Hovered || Dragging;
+                _lastFrameWasUnlocked = Unlocked;
+            }
+        }
     }
 }

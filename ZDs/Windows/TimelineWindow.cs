@@ -16,6 +16,12 @@ namespace ZDs.Windows
     internal class TimelineWindow : Window
     {
         private float _scale => ImGuiHelpers.GlobalScale;
+        
+        private bool userChangedSize = false;
+        private bool userChangedPosition = false;
+
+        private DrawHelper.WindowInteractionState _dragdata = new DrawHelper.WindowInteractionState();
+        
         private ZDsConfig Config => Plugin.Config;
 
         private ImGuiWindowFlags _baseFlags = ImGuiWindowFlags.NoScrollbar
@@ -28,10 +34,10 @@ namespace ZDs.Windows
         {
             Flags = _baseFlags;
 
-            Size = new Vector2(560, 120);
+            Size = Config.GeneralConfig.Size;
             SizeCondition = ImGuiCond.FirstUseEver;
 
-            Position = new Vector2(200, 200);
+            Position = Config.GeneralConfig.Position;
             PositionCondition = ImGuiCond.FirstUseEver;
         }
 
@@ -56,15 +62,33 @@ namespace ZDs.Windows
             ImGui.PopStyleColor();
             ImGui.PopStyleVar(2);
         }
-
+        
         public override void Draw()
         {
-            if (ImGui.IsWindowHovered())
+            Vector2 windowPos = ImGui.GetWindowPos();
+            Vector2 windowSize = ImGui.GetWindowSize();
+
+            // Update the dragdata state based on the current window position, size, and locked state
+            _dragdata.Update(windowPos, windowSize, Config.GeneralConfig.TimelineLocked);
+
+            // Apply the position and size from the configuration if the window is not being interacted with
+            if (!_dragdata.Hovered && !_dragdata.Dragging)
             {
-                if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
-                {
-                    Plugin.ToggleSettingsWindow();
-                }
+                ImGui.SetWindowPos(Config.GeneralConfig.Position, ImGuiCond.None);
+                ImGui.SetWindowSize(Config.GeneralConfig.Size, ImGuiCond.None);
+            }
+
+            // Update configuration with new position/size if the window is being interacted with
+            if (_dragdata is { Hovered: true, Dragging: true })
+            {
+                Config.GeneralConfig.Position = windowPos;
+                Config.GeneralConfig.Size = windowSize;
+            }
+
+            // Toggle settings window with right-click
+            if (_dragdata.Hovered && ImGui.IsMouseClicked(ImGuiMouseButton.Right))
+            {
+                Plugin.ToggleSettingsWindow();
             }
 
             IReadOnlyCollection<TimelineItem>? list = TimelineManager.Instance?.Items;
@@ -72,9 +96,11 @@ namespace ZDs.Windows
 
             ImDrawListPtr drawList = ImGui.GetWindowDrawList();
             Vector2 pos = ImGui.GetWindowPos();
-            float width = ImGui.GetWindowWidth();
-            float height = ImGui.GetWindowHeight();
+            Vector2 size = ImGui.GetWindowSize();
+            float width = size.X;
+            float height = size.Y;
             double now = ImGui.GetTime();
+
             
             if (Config.GeneralConfig.ShouldClip)
             {

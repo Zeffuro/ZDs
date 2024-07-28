@@ -129,6 +129,7 @@ namespace ZDs.Windows
 
         public override void OnClose()
         {
+            Plugin.Config.GeneralConfig.Preview = false;
             ConfigHelpers.SaveConfig();
             _configStack.Clear();
 

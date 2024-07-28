@@ -1,4 +1,4 @@
-﻿using Dalamud.Data;
+using Dalamud.Data;
 using Dalamud.Game;
 using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
@@ -151,7 +151,7 @@ namespace ZDs
         {
             _origin = ImGui.GetMainViewport().Size / 2f;
             _configWindow = new ConfigWindow("ZDs v"+ Version, _origin, new Vector2(700, 700));
-            _timelineWindow = new TimelineWindow("Timeline");
+            _timelineWindow = new TimelineWindow("ZDS_Timeline");
 
             _windowSystem = new WindowSystem("ZDs_Windows");
             _windowSystem.AddWindow(_configWindow);
@@ -197,6 +197,7 @@ namespace ZDs
             }
 
             _timelineWindow.IsOpen = show;
+            //Logger.Information($"{_timelineWindow.Size} | {_timelineWindow.Position}");
         }
 
         private void OpenConfigUi() => ToggleSettingsWindow();
@@ -210,7 +211,6 @@ namespace ZDs
 
             string changelogPath = Path.Combine(AssemblyLocation, "changelog.md");
 
-            Plugin.Logger.Information(changelogPath);
             if (File.Exists(changelogPath))
             {
                 try

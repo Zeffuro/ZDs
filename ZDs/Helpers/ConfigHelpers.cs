@@ -25,10 +25,8 @@ namespace ZDs.Helpers
         
         public static void ResetConfig()
         {
-            foreach (IConfigPage page in Plugin.Config.GetConfigPages())
-            {
-                Plugin.Config.ImportPage(page.GetDefault());
-            }
+            Plugin.Config = new ZDsConfig();
+            SaveConfig();
         }
 
         public static void ExportConfig()
@@ -155,7 +153,7 @@ namespace ZDs.Helpers
 
         public static void SaveConfig()
         {
-            ConfigHelpers.SaveConfig(Singletons.Get<ZDsConfig>());
+            SaveConfig(Plugin.Config);
         }
 
         public static void SaveConfig(ZDsConfig config)

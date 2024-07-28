@@ -15,6 +15,9 @@ namespace ZDs.Config
         
         public string Name => "General";
         
+        public Vector2 Position = new Vector2(ImGui.GetMainViewport().Size.X / 2, ImGui.GetMainViewport().Size.Y / 2);
+        public Vector2 Size = new Vector2(400, 80);
+        
         [JsonIgnore]
         public bool ShowingModalWindow = false;
         
@@ -33,6 +36,8 @@ namespace ZDs.Config
 
         public bool TimelineBorder = false;
         public float TimelineBorderThickness = 1f;
+
+        public bool Preview = false;
         
         
         private bool _clickedImport = false;
@@ -48,7 +53,14 @@ namespace ZDs.Config
 
                 if (ShowTimeline)
                 {
-
+                    //ImGui.NewLine();
+                    //ImGui.Checkbox("Preview", ref Preview);
+                     
+                    Vector2 screenSize = ImGui.GetMainViewport().Size;
+                    ImGui.DragFloat2("Position", ref Position, 1, -screenSize.X / 2, screenSize.X);
+                    ImGui.DragFloat2("Size", ref Size, 1, 0, screenSize.X);
+                    
+                    ImGui.NewLine();
                     ImGui.DragInt("Time (seconds)", ref TimelineTime, 0.1f, 1, 300);
                     DrawHelper.SetTooltip("This is how far in the past the timeline will go.");
 

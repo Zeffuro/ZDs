@@ -44,6 +44,7 @@ namespace ZDs.Config
         {
             if (disposing)
             {
+                GeneralConfig.Preview = false;
                 ConfigHelpers.SaveConfig(this);
             }
         }
