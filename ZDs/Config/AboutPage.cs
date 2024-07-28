@@ -31,13 +31,13 @@ namespace ZDs.Config
                 Vector2 buttonSize = new((size.X - padX * 2 - padX * 2) / 3, 30 - padY * 2);
                 if (ImGui.Button("Github", buttonSize))
                 {
-                    Utils.OpenUrl("https://github.com/Zeffuro/ZDs");
+                    Dalamud.Utility.Util.OpenLink("https://github.com/Zeffuro/ZDs");
                 }
 
                 ImGui.SameLine();
                 if (ImGui.Button("Ko-fi", buttonSize))
                 {
-                    Utils.OpenUrl("https://ko-fi.com/Zeffuro");
+                    Dalamud.Utility.Util.OpenLink("https://ko-fi.com/Zeffuro");
                 }
 
                 ImGui.PopStyleVar();
