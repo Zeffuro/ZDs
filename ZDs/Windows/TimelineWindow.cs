@@ -63,11 +63,9 @@ namespace ZDs.Windows
             {
                 if (ImGui.IsMouseClicked(ImGuiMouseButton.Right))
                 {
-                    Plugin.ShowSettingsWindow();
+                    Plugin.ToggleSettingsWindow();
                 }
             }
-
-            DrawGrid();
 
             IReadOnlyCollection<TimelineItem>? list = TimelineManager.Instance?.Items;
             if (list == null) { return; }
@@ -77,11 +75,18 @@ namespace ZDs.Windows
             float width = ImGui.GetWindowWidth();
             float height = ImGui.GetWindowHeight();
             double now = ImGui.GetTime();
-
-            if (Config.GeneralConfig.TimelineBorder)
+            
+            if (Config.GeneralConfig.ShouldClip)
             {
-                //drawList.AddRect();
+                ClipRect? clipRect = Singletons.Get<ClipRectsHelper>().GetClipRectForArea(pos, new Vector2(width, height));
+                
+                if (clipRect.HasValue)
+                {
+                    return;
+                }
             }
+
+            DrawGrid();
 
             Vector2 defaultSize = new Vector2(Config.CooldownConfig.TimelineIconSize);
             uint defaultTextColor = Config.CooldownConfig.CooldownTextColor.Base;

@@ -46,6 +46,19 @@ namespace ZDs.Windows
             this.IsOpen = true;
         }
 
+        public void ToggleWindow()
+        {
+            if (IsOpen)
+            {
+                _configStack.Clear();
+            }
+            else
+            {
+                _configStack.Push(Plugin.Config);
+            }
+            IsOpen = !IsOpen;
+        }
+
         public override void PreDraw()
         {
             if (_configStack.Count != 0)
@@ -66,12 +79,9 @@ namespace ZDs.Windows
             IConfigurable configItem = _configStack.Peek();
             Vector2 spacing = ImGui.GetStyle().ItemSpacing;
             Vector2 size = _windowSize - spacing * 2;
-            bool drawNavBar = _configStack.Count > 1;
 
-            if (drawNavBar)
-            {
-                size -= new Vector2(0, NavBarHeight + spacing.Y);
-            }
+            size -= new Vector2(0, NavBarHeight + spacing.Y);
+            
 
             IConfigPage? openPage = null;
             if (ImGui.BeginTabBar($"##{this.WindowName}"))
@@ -90,98 +100,8 @@ namespace ZDs.Windows
                 ImGui.EndTabBar();
             }
 
-            if (drawNavBar)
-            {
-                this.DrawNavBar(openPage, size, spacing.X);
-            }
-
             this.Position = ImGui.GetWindowPos();
             _windowSize = ImGui.GetWindowSize();
-        }
-
-        private void DrawNavBar(IConfigPage? openPage, Vector2 size, float padX)
-        {
-            Vector2 buttonsize = new(40, 0);
-            float textInputWidth = 150;
-
-            if (ImGui.BeginChild($"##{this.WindowName}_NavBar", new Vector2(size.X, NavBarHeight), true))
-            {
-                DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.LongArrowAltLeft, () => _back = true, "Back", buttonsize);
-
-                ImGui.SameLine();
-                if (_configStack.Count > 2)
-                {
-                    DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Home, () => _home = true, "Home", buttonsize);
-                    ImGui.SameLine();
-                }
-                else
-                {
-                    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 40 + padX);
-                }
-
-                // calculate empty horizontal space based on size of buttons and text box
-                float offset = size.X - buttonsize.X * 5 - textInputWidth - padX * 7;
-                ImGui.SetCursorPosX(ImGui.GetCursorPosX() + offset);
-
-                DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.UndoAlt, () => Reset(openPage), $"Reset {openPage?.Name} to Defaults", buttonsize);
-
-                ImGui.SameLine();
-                ImGui.PushItemWidth(textInputWidth);
-                if (ImGui.InputText("##Input", ref _name, 64, ImGuiInputTextFlags.EnterReturnsTrue))
-                {
-                    Rename(_name);
-                }
-
-                if (ImGui.IsItemHovered())
-                {
-                    ImGui.SetTooltip("Rename");
-                }
-
-                ImGui.PopItemWidth();
-
-                ImGui.SameLine();
-                DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Upload, () => Export(openPage), $"Export {openPage?.Name}", buttonsize);
-
-                ImGui.SameLine();
-                DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Download, () => Import(), $"Import {openPage?.Name}", buttonsize);
-            }
-
-            ImGui.EndChild();
-        }
-
-        private void Reset(IConfigPage? openPage)
-        {
-            if (openPage is not null)
-            {
-                _configStack.Peek().ImportPage(openPage.GetDefault());
-            }
-        }
-
-        private void Export(IConfigPage? openPage)
-        {
-            if (openPage is not null)
-            {
-                ConfigHelpers.ExportToClipboard<IConfigPage>(openPage);
-            }
-        }
-
-        private void Import()
-        {
-            string importString = ImGui.GetClipboardText();
-            IConfigPage? page = ConfigHelpers.GetFromImportString<IConfigPage>(importString);
-
-            if (page is not null)
-            {
-                _configStack.Peek().ImportPage(page);
-            }
-        }
-
-        private void Rename(string name)
-        {
-            if (_configStack.Count != 0)
-            {
-                _configStack.Peek().Name = name;
-            }
         }
 
         public override void PostDraw()

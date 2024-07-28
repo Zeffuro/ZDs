@@ -62,6 +62,7 @@
 	<ItemGroup>
 		<Content Include="$(ProjectDir)ZDs.json" CopyToOutputDirectory="Always" />
 		<Content Include="$(ProjectDir)Media\**" CopyToOutputDirectory="PreserveNewest" />
+		<Content Include="$(ProjectDir)changelog.md" CopyToOutputDirectory="PreserveNewest" />
 		<!-- <Content Include="$(ProjectDir)Media\icon.png" Link="images/icon.png" CopyToOutputDirectory="PreserveNewest" Visible="false" /> -->
 	</ItemGroup>
 

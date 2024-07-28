@@ -157,7 +157,7 @@ namespace ZDs.Helpers
                 Minimized = false
             };
 
-            Singletons.Get<INotificationManager>().AddNotification(notification);
+            Plugin.NotificationManager.AddNotification(notification);
         }
         
         public static void DrawOutlinedText(string text, Vector2 pos, uint color, uint outlineColor, ImDrawListPtr drawList, int thickness = 1)
@@ -212,14 +212,14 @@ namespace ZDs.Helpers
             bool didConfirm = false;
             bool didClose = false;
 
-            ImGui.OpenPopup(title + " ##ZDs");
+            ImGui.OpenPopup(title + " ##ZDs_Modal");
 
             Vector2 center = ImGui.GetMainViewport().GetCenter();
             ImGui.SetNextWindowPos(center, ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
 
             bool p_open = true; // i've no idea what this is used for
 
-            if (ImGui.BeginPopupModal(title + " ##ZDs", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
+            if (ImGui.BeginPopupModal(title + " ##ZDs_Modal", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
             {
                 float width = 300;
                 float height = Math.Min((ImGui.CalcTextSize(" ").Y + 5) * textLines.Count(), 240);
@@ -269,13 +269,13 @@ namespace ZDs.Helpers
             Config.GeneralConfig.ShowingModalWindow = true;
 
             bool didClose = false;
-            ImGui.OpenPopup("Error ##ZDs");
+            ImGui.OpenPopup("Error ##ZDs_Modal");
 
             Vector2 center = ImGui.GetMainViewport().GetCenter();
             ImGui.SetNextWindowPos(center, ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
 
             bool p_open = true; // i've no idea what this is used for
-            if (ImGui.BeginPopupModal("Error ##ZDs", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
+            if (ImGui.BeginPopupModal("Error ##ZDs_Modal", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
             {
                 ImGui.Text(message);
                 ImGui.NewLine();

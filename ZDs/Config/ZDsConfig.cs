@@ -16,9 +16,8 @@ namespace ZDs.Config
             set {}
         }
 
-        //[JsonIgnore]
-        //private AboutPage AboutPage { get; } = new AboutPage();
-
+        [JsonIgnore]
+        private AboutPage AboutPage { get; }
         public GeneralConfig GeneralConfig { get; init; }
         public AbilitiesConfig AbilitiesConfig { get; init; }
         public CooldownConfig CooldownConfig { get; init; }
@@ -32,6 +31,7 @@ namespace ZDs.Config
             CooldownConfig = new CooldownConfig();
             GridConfig = new GridConfig();
             FontConfig = new FontConfig();
+            AboutPage = new AboutPage();
         }
 
         public void Dispose()
@@ -55,7 +55,7 @@ namespace ZDs.Config
             yield return CooldownConfig;
             yield return GridConfig;
             yield return FontConfig;
-            //yield return this.AboutPage;
+            yield return AboutPage;
         }
 
         public void ImportPage(IConfigPage page)

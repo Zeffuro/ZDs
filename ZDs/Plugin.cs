@@ -35,6 +35,7 @@ namespace ZDs
         public static IKeyState KeyState { get; private set; } = null!;
         public static IPluginLog Logger { get; private set; } = null!;
         public static ITextureProvider TextureProvider { get; private set; } = null!;
+        public static INotificationManager NotificationManager { get; private set; } = null!;
 
         public static string AssemblyLocation { get; private set; } = "";
         public string Name => "ZDs";
@@ -43,8 +44,9 @@ namespace ZDs
         public static string Version { get; private set; } = "";
         public static string ConfigFileDir { get; private set; } = "";
         public static string ConfigFilePath { get; private set; } = "";
+        public static string Changelog { get; private set; } = string.Empty;
 
-        public static ZDsConfig Config { get; private set; } = null!;
+        public static ZDsConfig Config { get; set; } = null!;
 
         private static WindowSystem _windowSystem = null!;
         private static ConfigWindow _configWindow = null!;
@@ -65,7 +67,8 @@ namespace ZDs
             
             IKeyState keyState,
             IPluginLog logger,
-            ITextureProvider textureProvider
+            ITextureProvider textureProvider,
+            INotificationManager notificationManager
         )
         {
             ClientState = clientState;
@@ -81,6 +84,7 @@ namespace ZDs
             KeyState = keyState;
             Logger = logger;
             TextureProvider = textureProvider;
+            NotificationManager = notificationManager;
 
             if (pluginInterface.AssemblyLocation.DirectoryName != null)
             {
@@ -109,7 +113,12 @@ namespace ZDs
             );
 
             TimelineManager.Initialize();
-
+            
+            Singletons.Register(new ClipRectsHelper());
+            
+            // Load changelog
+            Changelog = LoadChangelog();
+            
             // Load config
             FontsManager.CopyPluginFontsToUserPath();
             Config = ConfigHelpers.LoadConfig(ConfigFilePath);
@@ -134,7 +143,7 @@ namespace ZDs
         private void PluginCommand(string command, string arguments)
         {
             {
-                ShowSettingsWindow();
+                ToggleSettingsWindow();
             }
         }
 
@@ -154,16 +163,15 @@ namespace ZDs
             if (Config == null || ClientState.LocalPlayer == null) return;
 
             UpdateTimeline();
+            
+            Singletons.Get<ClipRectsHelper>().Update();
 
             _windowSystem?.Draw();
         }
 
-        public static void ShowSettingsWindow()
+        public static void ToggleSettingsWindow()
         {
-            if (!_configWindow.IsOpen)
-            {
-                _configWindow.PushConfig(Config);
-            }
+            _configWindow.ToggleWindow();
         }
 
         private void UpdateTimeline()
@@ -191,7 +199,33 @@ namespace ZDs
             _timelineWindow.IsOpen = show;
         }
 
-        private void OpenConfigUi() => ShowSettingsWindow();
+        private void OpenConfigUi() => ToggleSettingsWindow();
+        
+        private static string LoadChangelog()
+        {
+            if (string.IsNullOrEmpty(AssemblyLocation))
+            {
+                return string.Empty;
+            }
+
+            string changelogPath = Path.Combine(AssemblyLocation, "changelog.md");
+
+            Plugin.Logger.Information(changelogPath);
+            if (File.Exists(changelogPath))
+            {
+                try
+                {
+                    string changelog = File.ReadAllText(changelogPath);
+                    return changelog.Replace("# ", string.Empty);
+                }
+                catch (Exception ex)
+                {
+                    Singletons.Get<IPluginLog>().Warning($"Error loading changelog: {ex}");
+                }
+            }
+
+            return string.Empty;
+        }
 
         protected virtual void Dispose(bool disposing)
         {

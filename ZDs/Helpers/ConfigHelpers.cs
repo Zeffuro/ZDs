@@ -22,6 +22,30 @@ namespace ZDs.Helpers
             ObjectCreationHandling = ObjectCreationHandling.Replace,
             SerializationBinder = new ZDsSerializationBinder()
         };
+        
+        public static void ResetConfig()
+        {
+            foreach (IConfigPage page in Plugin.Config.GetConfigPages())
+            {
+                Plugin.Config.ImportPage(page.GetDefault());
+            }
+        }
+
+        public static void ExportConfig()
+        {
+            ConfigHelpers.ExportToClipboard<ZDsConfig>(Plugin.Config);
+        }
+
+        public static void ImportConfig()
+        {
+            string importString = ImGui.GetClipboardText();
+            ZDsConfig? config = ConfigHelpers.GetFromImportString<ZDsConfig>(importString);
+
+            if (config is not null)
+            {
+                Plugin.Config = config;
+            }
+        }
 
         public static void ExportToClipboard<T>(T toExport)
         {
@@ -156,7 +180,6 @@ namespace ZDs.Helpers
     {
         private static readonly List<Type> _configTypes =
         [
-            //typeof(ActConfig)
         ];
 
         private static readonly Dictionary<string, string> _typeNameConversions = new()
