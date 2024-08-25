@@ -4,6 +4,5 @@
   "Punchline": "ZeeDees, bring the Zs to your Ds!",
   "Description": "Show when cooldowns come off cooldown in an intuitive way!",
   "RepoUrl": "https://github.com/Zeffuro/ZDs",
-  "Tags": [ "UI" ],
-  "Changelog": "# 1.0.0.0\n- Initial release."
+  "Tags": [ "UI" ]
 }
