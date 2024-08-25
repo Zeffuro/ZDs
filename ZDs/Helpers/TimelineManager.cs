@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Dalamud.Interface.Textures;
 using Dalamud.Plugin.Services;
 using ZDs.Config;
 using LuminaAction = Lumina.Excel.GeneratedSheets.Action;
@@ -142,16 +143,44 @@ namespace ZDs.Helpers
         private ExcelSheet<LuminaAction>? _sheet;
         private Dictionary<uint, uint> _specialCasesMap = new()
         {
+            // BRD
+            [110] = 110,    // bloodletter
+            [117] = 110,    // rain of death
+            [36975] = 110,  // bloodletter
+            
+            // MCH
+            [16498] = 16498, // drill
+            [16499] = 16498, // bio blaster
+            
             // MNK
-            [16475] = 53, // anatman
+            [16475] = 53,   // anatman
 
+            // NIN
+            [2259] = 2259,   // ten
+            [2261] = 2259,   // chi
+            [2263] = 2259,   // jin
+            [18805] = 18805, // ten
+            [18806] = 18805, // chi
+            [18807] = 18805, // jin
+            
             // SAM
             [16484] = 7477, // kaeshi higanbana
             [16485] = 7477, // kaeshi goken
             [16486] = 7477, // keashi setsugekka
 
             // RDM
-            [25858] = 7504 // resolution
+            [25858] = 7504,  // resolution
+            [16527] = 16527, // engagement
+            [7515] = 16527, // displacement
+            
+            // RPR
+            [24380] = 24380, // soul slice
+            [24381] = 24380, // soul scythe
+            
+            // VPR
+            [34620] = 34620, // vicewinder
+            [34623] = 34620, // vice Pit
+            
         };
         private Dictionary<uint, float> _hardcodedCasesMap = new()
         {
@@ -173,6 +202,21 @@ namespace ZDs.Helpers
             [16491] = 1.5f, // goka mekkyaku
             [16492] = 1.5f, // hyosho ranryu
         };
+        
+        private Dictionary<uint, uint> _hardcodedIconIds = new()
+        {
+            // General
+            [1] = 101,
+            [3] = 104,
+            
+            // NIN
+            [2259] = 2904,  // ten
+            [2261] = 2904,  // chi
+            [2263] = 2904,  // jin
+            [18805] = 2904, // ten
+            [18806] = 2904, // chi
+            [18807] = 2904, // jin
+        };
 
         private static int kMaxItemCount = 50;
         private List<TimelineItem> _items = new List<TimelineItem>(kMaxItemCount);
@@ -182,22 +226,24 @@ namespace ZDs.Helpers
 
         private double _outOfCombatStartTime = -1;
         private bool _hadSwiftcast = false;
+        private bool _hadMudra = false;
 
 
         private unsafe void Update(IFramework framework)
         {
             double now = ImGui.GetTime();
 
-            CheckSwiftcast();
+            CheckStatuses();
             CheckCooldown();
         }
 
-        private void CheckSwiftcast()
+        private void CheckStatuses()
         {
             IPlayerCharacter? player = Plugin.ClientState.LocalPlayer;
             if (player != null)
             {
                 _hadSwiftcast = player.StatusList.Any(s => s.StatusId == 167);
+                _hadMudra = player.StatusList.Any(s => s.StatusId == 496);
             }
         }
         
@@ -274,29 +320,40 @@ namespace ZDs.Helpers
             {
                 return;
             }
+            
+            // handle weird cases
+            if (_specialCasesMap.TryGetValue(actionId, out uint replacedId))
+            {
+                type = TimelineItemType.Action;
+                actionId = replacedId;
+            }
+            
+            // Ninja's Hide restores Mudra Charges
+            uint[] mudraActionIds = [2259, 2261, 2263];
+            if (actionId == 2245)
+            {
+                _items.RemoveAll(item => mudraActionIds.Contains(item.ActionID));
+            }
+
+            if (mudraActionIds.Contains(actionId) && _hadMudra)
+            {
+                return;
+            }
 
             if (recastInfo.MaxCharges > 0 && _items.Any(x => x.ActionID == actionId))
             {
                 _items.Find(x => x.ActionID == actionId)!.ActiveCharges--;
                 return;
             }
-
-            // handle sprint and auto attack icons
-            int iconId = actionId == 3 ? 104 : (actionId == 1 ? 101 : action.Icon);
-
-            // handle weird cases
-            uint id = actionId;
-            if (_specialCasesMap.TryGetValue(actionId, out uint replacedId))
-            {
-                type = TimelineItemType.Action;
-                id = replacedId;
-            }
-
+            
+            // handle changed icons
+            int iconId = _hardcodedIconIds.TryGetValue(actionId, out uint hardcodedIconId) ? (int)hardcodedIconId : action.Icon;
+            
             // calculate gcd and cast time
             if (type == TimelineItemType.CastStart)
             {
-                gcdDuration = GetGCDTime(id);
-                castTime = GetCastTime(id);
+                gcdDuration = GetGCDTime(actionId);
+                castTime = GetCastTime(actionId);
             }
             else if (type == TimelineItemType.Action)
             {
@@ -308,8 +365,8 @@ namespace ZDs.Helpers
                 }
                 else
                 {
-                    gcdDuration = GetGCDTime(id);
-                    castTime = _hadSwiftcast ? 0 : GetCastTime(id);
+                    gcdDuration = GetGCDTime(actionId);
+                    castTime = _hadSwiftcast ? 0 : GetCastTime(actionId);
                 }
             }
 
