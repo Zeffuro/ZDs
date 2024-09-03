@@ -1,4 +1,5 @@
-﻿using FFXIVClientStructs.FFXIV.Client.Game;
+﻿using System;
+using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace ZDs.Helpers;
 
@@ -44,6 +45,30 @@ public class ActionsHelper
         }
 
         return;
+    }
+    
+    public unsafe uint GetSpellActionId(uint actionId) => _actionManager->GetAdjustedActionId(actionId);
+    public unsafe float GetRecastTime(uint actionId) => _actionManager->GetRecastTime(ActionType.Action, GetSpellActionId(actionId));
+    public unsafe float GetRecastTimeElapsed(uint actionId) => _actionManager->GetRecastTimeElapsed(ActionType.Action, GetSpellActionId(actionId));
+    public float GetSpellCooldown(uint actionId) => Math.Abs(GetRecastTime(GetSpellActionId(actionId)) - GetRecastTimeElapsed(GetSpellActionId(actionId)));
+    
+    public int GetSpellCooldownInt(uint actionId)
+    {
+        int cooldown = (int)Math.Ceiling(GetSpellCooldown(actionId) % GetRecastTime(actionId));
+        return Math.Max(0, cooldown);
+    }
+    
+    public int GetStackCount(int maxStacks, uint actionId)
+    {
+        int cooldown = GetSpellCooldownInt(actionId);
+        float recastTime = GetRecastTime(actionId);
+
+        if (cooldown <= 0 || recastTime == 0)
+        {
+            return maxStacks;
+        }
+
+        return maxStacks - (int)Math.Ceiling(cooldown / (recastTime / maxStacks));
     }
     
     public struct RecastInfo

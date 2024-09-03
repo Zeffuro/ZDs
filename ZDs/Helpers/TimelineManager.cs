@@ -1,4 +1,4 @@
-﻿using Dalamud.Game;
+using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Hooking;
@@ -227,12 +227,11 @@ namespace ZDs.Helpers
         private double _outOfCombatStartTime = -1;
         private bool _hadSwiftcast = false;
         private bool _hadMudra = false;
+        private bool _hadMB = false;
 
 
         private unsafe void Update(IFramework framework)
         {
-            double now = ImGui.GetTime();
-
             CheckStatuses();
             CheckCooldown();
         }
@@ -244,11 +243,18 @@ namespace ZDs.Helpers
             {
                 _hadSwiftcast = player.StatusList.Any(s => s.StatusId == 167);
                 _hadMudra = player.StatusList.Any(s => s.StatusId == 496);
+                _hadMB = player.StatusList.Any(s => s.StatusId == 2217 && s.SourceId == player.GameObjectId);
             }
         }
         
         private void CheckCooldown()
         {
+            if (_hadMB)
+            {
+                // Handle Bloodletter and their upgraded counterparts
+                HandleSpecialChargedActions([110]);
+            }
+            
             foreach (var item in _items.ToList().Where(item => ImGui.GetTime() - item.Time > item.Cooldown / 10))
             {
                 if (item.MaxCharges > 0 && item.ActiveCharges != item.MaxCharges)
@@ -260,6 +266,37 @@ namespace ZDs.Helpers
                     return;
                 }
                 _items.Remove(item);
+            }
+        }
+
+        private void HandleSpecialChargedActions(uint[] actionIds)
+        {
+            ActionsHelper actionHelper = new ActionsHelper();
+            
+            foreach (var actionId in actionIds)
+            {
+                var timelineItem = _items.FirstOrDefault(item => item.ActionID == actionId);
+                if (timelineItem != null)
+                {
+                    actionHelper.GetAdjustedRecastInfo(actionId, out ActionsHelper.RecastInfo recastInfo);
+            
+                    int stacks = recastInfo.RecastTime == 0f
+                        ? recastInfo.MaxCharges
+                        : (int)(recastInfo.MaxCharges * (recastInfo.RecastTimeElapsed / recastInfo.RecastTime));
+
+                    float chargeTime = recastInfo.MaxCharges != 0
+                        ? recastInfo.RecastTime / recastInfo.MaxCharges
+                        : recastInfo.RecastTime;
+
+                    float cooldown = (chargeTime != 0
+                        ? Math.Abs(recastInfo.RecastTime - recastInfo.RecastTimeElapsed) % chargeTime
+                        : 0);
+                        
+                    float cooldownLeft = Math.Abs(chargeTime - cooldown);
+
+                    timelineItem.ActiveCharges = stacks;
+                    timelineItem.Time = ImGui.GetTime() - cooldownLeft;
+                }
             }
         }
 
@@ -305,6 +342,12 @@ namespace ZDs.Helpers
             double now = ImGui.GetTime();
             float gcdDuration = 0;
             float castTime = 0;
+            
+            if (actionId is 7410 or 36978)
+            {
+                // Handle Gauss Round / Ricochet and their upgraded counterparts
+                HandleSpecialChargedActions([2874, 2890]);
+            }
 
             if (Config.AbilitiesConfig.FilterAbilities)
             {
