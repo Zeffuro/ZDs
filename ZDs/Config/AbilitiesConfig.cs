@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
 using ImGuiNET;
@@ -29,6 +30,12 @@ namespace ZDs.Config
         private string? _errorMessage = null;
         private string? _importString = null;
         private bool _clearingList = false;
+        
+        private uint[] _specialAbilities =
+        [
+            3, // Sprint
+            6  // Return
+        ];
 
         public IConfigPage GetDefault() => new GeneralConfig();
 
@@ -286,7 +293,7 @@ namespace ZDs.Config
                     if (uintValue > 0)
                     {
                         Action? action = sheet.GetRow(uintValue);
-                        if (action != null && action.IsPlayerAction)
+                        if (action != null && (action.IsPlayerAction || _specialAbilities.Contains(action.RowId)))
                         {
                             actionToAdd.Add(action);
                         }
@@ -301,7 +308,7 @@ namespace ZDs.Config
                     while (enumerator.MoveNext())
                     {
                         Action item = enumerator.Current;
-                        if (item.Name.ToString().ToLower() == input.ToLower() && item.IsPlayerAction)
+                        if (item.Name.ToString().ToLower() == input.ToLower() && (item.IsPlayerAction || _specialAbilities.Contains(item.RowId)))
                         {
                             actionToAdd.Add(item);
                         }
