@@ -430,6 +430,11 @@ namespace ZDs.Helpers
             _items.Sort((x, y) => x.Cooldown.CompareTo(y.Cooldown));
         }
 
+        private void ResetCooldowns()
+        {
+            _items.Clear();
+        }
+
         private TimelineItemType? TypeForActionID(uint actionId)
         {
             LuminaAction? action = _sheet?.GetRow(actionId);
@@ -467,6 +472,12 @@ namespace ZDs.Helpers
         private void OnActorControl(uint entityId, uint type, uint buffID, uint direct, uint actionId, uint sourceId, uint arg4, uint arg5, ulong targetId, byte a10)
         {
             _onActorControlHook?.Original(entityId, type, buffID, direct, actionId, sourceId, arg4, arg5, targetId, a10);
+            
+            // Works for most wipes (it's the fadeout).
+            if (direct == 0x4000000F)
+            {
+                ResetCooldowns();
+            }
 
             if (type != 15) { return; }
 

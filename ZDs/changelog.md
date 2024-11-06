@@ -1,4 +1,8 @@
-# 1.0.0.1
+# 1.0.0.3
+- Allow whitelisting/blacklisting Sprint and Return.
+- Reset cooldowns when you wipe in a fight.
+
+# 1.0.0.2
 - Fixed BRD Bloodletter under Mage's Ballad and MCH Heat Blast affecting the cooldown of Gauss Round and Ricochet.  
 
 # 1.0.0.1
