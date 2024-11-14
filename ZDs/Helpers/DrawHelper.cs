@@ -7,6 +7,7 @@ using Dalamud.Interface;
 using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Component.Excel;
 using Lumina.Excel;
 using ZDs.Config;
 
@@ -65,7 +66,7 @@ namespace ZDs.Helpers
             }
         }
         
-        public static void DrawIcon<T>(dynamic row, Vector2 position, Vector2 size, bool drawBorder, bool cropIcon) where T : ExcelRow
+        public static void DrawIcon<T>(dynamic row, Vector2 position, Vector2 size, bool drawBorder, bool cropIcon) where T : struct, IExcelRow<T>
         {
             IDalamudTextureWrap texture = TexturesHelper.GetTexture<T>(row);
             if (texture == null) { return; }

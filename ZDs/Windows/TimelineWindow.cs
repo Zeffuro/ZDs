@@ -28,7 +28,8 @@ namespace ZDs.Windows
                                             | ImGuiWindowFlags.NoCollapse
                                             | ImGuiWindowFlags.NoTitleBar
                                             | ImGuiWindowFlags.NoNav
-                                            | ImGuiWindowFlags.NoScrollWithMouse;
+                                            | ImGuiWindowFlags.NoScrollWithMouse 
+                                            | ImGuiWindowFlags.NoFocusOnAppearing;
 
         public TimelineWindow(string name) : base(name)
         {

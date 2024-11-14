@@ -1,3 +1,6 @@
+# 1.0.0.4
+- Update to API11
+
 # 1.0.0.3
 - Allow whitelisting/blacklisting Sprint and Return.
 - Reset cooldowns when you wipe in a fight.

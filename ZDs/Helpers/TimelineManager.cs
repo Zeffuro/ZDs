@@ -12,8 +12,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Dalamud.Interface.Textures;
 using Dalamud.Plugin.Services;
+using Lumina.Excel.Sheets;
 using ZDs.Config;
-using LuminaAction = Lumina.Excel.GeneratedSheets.Action;
+using LuminaAction = Lumina.Excel.Sheets.Action;
 
 namespace ZDs.Helpers
 {
@@ -66,7 +67,7 @@ namespace ZDs.Helpers
 
         public static TimelineManager Instance { get; private set; } = null!;
 
-        public TimelineManager()
+        public unsafe TimelineManager()
         {
             _sheet = Plugin.DataManager.GetExcelSheet<LuminaAction>();
 
@@ -316,8 +317,11 @@ namespace ZDs.Helpers
 
         private void AddItem(uint actionId, TimelineItemType type)
         {
-            LuminaAction? action = _sheet?.GetRow(actionId);
-            if (action == null) { return; }
+            if (_sheet?.GetRow(actionId) is not LuminaAction action)
+            {
+                return;
+            }
+
             ActionsHelper actionHelper = new ActionsHelper();
             actionHelper.GetAdjustedRecastInfo(actionId, out ActionsHelper.RecastInfo recastInfo);
             
@@ -437,16 +441,18 @@ namespace ZDs.Helpers
 
         private TimelineItemType? TypeForActionID(uint actionId)
         {
-            LuminaAction? action = _sheet?.GetRow(actionId);
-            if (action == null) { return null; }
+            if (_sheet?.GetRow(actionId) is not LuminaAction action)
+            {
+                return null;
+            }
 
             // off gcd or sprint
-            if (action.ActionCategory.Row is 4 || actionId == 3)
+            if (action.ActionCategory.RowId is 4 || actionId == 3)
             {
                 return TimelineItemType.OffGCD;
             }
 
-            if (action.ActionCategory.Row is 1)
+            if (action.ActionCategory.RowId is 1)
             {
                 return TimelineItemType.AutoAttack;
             }

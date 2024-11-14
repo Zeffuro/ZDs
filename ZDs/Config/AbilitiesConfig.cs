@@ -6,8 +6,8 @@ using Dalamud.Interface;
 using ImGuiNET;
 using ZDs.Helpers;
 using Newtonsoft.Json;
-using Action = Lumina.Excel.GeneratedSheets.Action;
 using Lumina.Excel;
+using Action = Lumina.Excel.Sheets.Action;
 
 namespace ZDs.Config
 {
@@ -147,7 +147,11 @@ namespace ZDs.Config
                             {
                                 var id = FilteredAbilities.Values[i];
                                 var name = FilteredAbilities.Keys[i];
-                                var row = sheet?.GetRow(id);
+
+                                if (sheet?.GetRow(id) is not Action row)
+                                {
+                                    continue;
+                                }
 
                                 if (_input != "" && !name.ToUpper().Contains(_input.ToUpper()))
                                 {
@@ -160,10 +164,7 @@ namespace ZDs.Config
                                 // icon
                                 if (ImGui.TableSetColumnIndex(0))
                                 {
-                                    if (row != null)
-                                    {
-                                        DrawHelper.DrawIcon<Action>(row, ImGui.GetCursorPos(), iconSize, false, true);
-                                    }
+                                    DrawHelper.DrawIcon<Action>(row, ImGui.GetCursorPos(), iconSize, false, true);
                                 }
 
                                 // id
@@ -175,7 +176,7 @@ namespace ZDs.Config
                                 // name
                                 if (ImGui.TableSetColumnIndex(2))
                                 {
-                                    var displayName = row != null ? row.Name : name;
+                                    var displayName = row.Name.ExtractText();
                                     ImGui.Text(displayName);
                                 }
 
@@ -265,12 +266,12 @@ namespace ZDs.Config
         
         private string KeyName(Action status)
         {
-            return status.Name + "[" + status.RowId.ToString() + "]";
+            return $"{status.Name.ExtractText()}[{status.RowId}]";
         }
         
-        public bool AddNewEntry(Action? action)
+        public bool AddNewEntry(Action action)
         {
-            if (action != null && !FilteredAbilities.ContainsKey(KeyName(action)))
+            if (!FilteredAbilities.ContainsKey(KeyName(action)))
             {
                 FilteredAbilities.Add(KeyName(action), action.RowId);
                 _input = "";
@@ -281,9 +282,9 @@ namespace ZDs.Config
             return false;
         }
 
-        private bool AddNewEntry(string input, ExcelSheet<Action>? sheet)
+        private bool AddNewEntry(string input, ExcelSheet<Action> sheet)
         {
-            if (input.Length > 0 && sheet != null)
+            if (input.Length > 0)
             {
                 List<Action> actionToAdd = new List<Action>();
 
@@ -292,8 +293,7 @@ namespace ZDs.Config
                 {
                     if (uintValue > 0)
                     {
-                        Action? action = sheet.GetRow(uintValue);
-                        if (action != null && (action.IsPlayerAction || _specialAbilities.Contains(action.RowId)))
+                        if(sheet.GetRow(uintValue) is Action action && (action.IsPlayerAction || _specialAbilities.Contains(action.RowId)))
                         {
                             actionToAdd.Add(action);
                         }
