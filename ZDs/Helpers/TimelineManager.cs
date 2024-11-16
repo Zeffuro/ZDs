@@ -439,20 +439,22 @@ namespace ZDs.Helpers
             _items.Clear();
         }
 
-        private TimelineItemType? TypeForActionID(uint actionId)
+        private TimelineItemType? TypeForActionID(uint id)
         {
-            if (_sheet?.GetRow(actionId) is not LuminaAction action)
+            LuminaAction? action = _sheet?.GetRowOrDefault(id);
+
+            if (action == null)
             {
                 return null;
             }
 
             // off gcd or sprint
-            if (action.ActionCategory.RowId is 4 || actionId == 3)
+            if (action.Value.ActionCategory.RowId is 4 || id == 3)
             {
                 return TimelineItemType.OffGCD;
             }
 
-            if (action.ActionCategory.RowId is 1)
+            if (action.Value.ActionCategory.RowId is 1)
             {
                 return TimelineItemType.AutoAttack;
             }

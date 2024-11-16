@@ -1,3 +1,6 @@
+# 1.0.0.5
+- Fix crash when using certain items
+
 # 1.0.0.4
 - Update to API11
 
