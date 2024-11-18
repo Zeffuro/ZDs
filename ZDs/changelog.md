@@ -1,3 +1,6 @@
+# 1.0.0.6
+- Allow Umbral Draw to be whitelisted/blacklisted
+
 # 1.0.0.5
 - Fix crash when using certain items
 

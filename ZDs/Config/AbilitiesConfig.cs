@@ -33,8 +33,9 @@ namespace ZDs.Config
         
         private uint[] _specialAbilities =
         [
-            3, // Sprint
-            6  // Return
+            3,      // Sprint
+            6,      // Return
+            37018   // Umbral Draw
         ];
 
         public IConfigPage GetDefault() => new GeneralConfig();
