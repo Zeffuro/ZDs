@@ -9,9 +9,12 @@ using Lumina.Excel;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using Dalamud.Interface.Textures;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Lumina.Excel.Sheets;
 using ZDs.Config;
 using LuminaAction = Lumina.Excel.Sheets.Action;
@@ -73,8 +76,8 @@ namespace ZDs.Helpers
 
             try
             {
-                _onActionUsedHook = Plugin.GameInteropProvider.HookFromSignature<OnActionUsedDelegate>(
-                    "40 ?? 56 57 41 ?? 41 ?? 41 ?? 48 ?? ?? ?? ?? ?? ?? ?? 48",
+                _onActionUsedHook = Plugin.GameInteropProvider.HookFromAddress<ActionEffectHandler.Delegates.Receive>(
+                    ActionEffectHandler.MemberFunctionPointers.Receive,
                     OnActionUsed
                 );
                 _onActionUsedHook?.Enable();
@@ -133,7 +136,7 @@ namespace ZDs.Helpers
         #endregion
 
         private delegate void OnActionUsedDelegate(uint sourceId, IntPtr sourceCharacter, IntPtr pos, IntPtr effectHeader, IntPtr effectArray, IntPtr effectTrail);
-        private Hook<OnActionUsedDelegate>? _onActionUsedHook;
+        private Hook<ActionEffectHandler.Delegates.Receive>? _onActionUsedHook;
 
         private delegate void OnActorControlDelegate(uint entityId, uint id, uint unk1, uint type, uint unk2, uint unk3, uint unk4, uint unk5, UInt64 targetId, byte unk6);
         private Hook<OnActorControlDelegate>? _onActorControlHook;
@@ -461,20 +464,19 @@ namespace ZDs.Helpers
 
             return TimelineItemType.Action;
         }
-
-        private void OnActionUsed(uint sourceId, IntPtr sourceCharacter, IntPtr pos, IntPtr effectHeader,
-            IntPtr effectArray, IntPtr effectTrail)
+        
+        private unsafe void OnActionUsed(uint actorId, Character* casterPtr, Vector3* targetPos, ActionEffectHandler.Header* header, ActionEffectHandler.TargetEffects* effects, GameObjectId* targetEntityIds)
         {
-            _onActionUsedHook?.Original(sourceId, sourceCharacter, pos, effectHeader, effectArray, effectTrail);
+            _onActionUsedHook?.Original(actorId, casterPtr, targetPos, header, effects, targetEntityIds);
 
-            IPlayerCharacter? player = Plugin.ClientState.LocalPlayer;
-            if (player == null || sourceId != player.GameObjectId) { return; }
+            IPlayerCharacter ? player = Plugin.ClientState.LocalPlayer;
+            if (player == null || actorId != player.GameObjectId) { return; }
 
-            int actionId = Marshal.ReadInt32(effectHeader, 0x8);
-            TimelineItemType? type = TypeForActionID((uint)actionId);
+            uint actionId = header->ActionId;
+            TimelineItemType? type = TypeForActionID(actionId);
             if (!type.HasValue) { return; }
 
-            AddItem((uint)actionId, type.Value);
+            AddItem (actionId, type.Value);
         }
 
         private void OnActorControl(uint entityId, uint type, uint buffID, uint direct, uint actionId, uint sourceId, uint arg4, uint arg5, ulong targetId, byte a10)

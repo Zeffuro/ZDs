@@ -1,3 +1,6 @@
+# 1.0.0.7
+- Update to API12
+
 # 1.0.0.6
 - Allow Umbral Draw to be whitelisted/blacklisted
 
