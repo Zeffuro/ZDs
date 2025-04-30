@@ -144,7 +144,7 @@ namespace ZDs.Helpers
         private delegate void OnCastDelegate(uint sourceId, IntPtr sourceCharacter);
         private Hook<OnCastDelegate>? _onCastHook;
 
-        private ExcelSheet<LuminaAction>? _sheet;
+        private ExcelSheet<LuminaAction> _sheet;
         private Dictionary<uint, uint> _specialCasesMap = new()
         {
             // BRD
@@ -320,7 +320,7 @@ namespace ZDs.Helpers
 
         private void AddItem(uint actionId, TimelineItemType type)
         {
-            if (_sheet?.GetRow(actionId) is not LuminaAction action)
+            if (!_sheet.TryGetRow(actionId, out LuminaAction action))
             {
                 return;
             }
@@ -444,7 +444,7 @@ namespace ZDs.Helpers
 
         private TimelineItemType? TypeForActionID(uint id)
         {
-            LuminaAction? action = _sheet?.GetRowOrDefault(id);
+            LuminaAction? action = _sheet.GetRowOrDefault(id);
 
             if (action == null)
             {
