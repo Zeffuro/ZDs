@@ -1,5 +1,5 @@
 # 1.0.0.8
-- Possible fix for Quest Items sometimes crashing
+- Fix for Quest Items sometimes crashing
 
 # 1.0.0.7
 - Update to API12

@@ -474,7 +474,7 @@ namespace ZDs.Helpers
 
             uint actionId = header->ActionId;
             TimelineItemType? type = TypeForActionID(actionId);
-            if (!type.HasValue) { return; }
+            if (header->ActionType != ActionType.Action || !type.HasValue) { return; }
 
             AddItem (actionId, type.Value);
         }
