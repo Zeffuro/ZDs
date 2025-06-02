@@ -98,6 +98,20 @@ namespace ZDs.Windows
             ImDrawListPtr drawList = ImGui.GetWindowDrawList();
             Vector2 pos = ImGui.GetWindowPos();
             Vector2 size = ImGui.GetWindowSize();
+            
+            float padding = GetPaddingForLabels() * 2;
+            
+            if (Config.GeneralConfig.TimelineOrientation is Orientation.LeftToRight or Orientation.RightToLeft)
+            {
+                pos.X += padding / 2f;
+                size.X -= padding;
+            }
+            else if (Config.GeneralConfig.TimelineOrientation is Orientation.TopToBottom or Orientation.BottomToTop)
+            {
+                pos.Y += padding / 2f;
+                size.Y -= padding;
+            }
+            
             float width = size.X;
             float height = size.Y;
             double now = ImGui.GetTime();
@@ -105,7 +119,7 @@ namespace ZDs.Windows
             
             if (Config.GeneralConfig.ShouldClip)
             {
-                ClipRect? clipRect = Singletons.Get<ClipRectsHelper>().GetClipRectForArea(pos, new Vector2(width, height));
+                ClipRect? clipRect = Singletons.Get<ClipRectsHelper>().GetClipRectForArea(windowPos, windowSize);
                 
                 if (clipRect.HasValue)
                 {
@@ -169,7 +183,7 @@ namespace ZDs.Windows
 
                 if (timeSince < cooldown)
                 {
-                    DrawHelper.DrawIcon(item.IconID, position, iconSize, Config.CooldownConfig.DrawIconBorder, 1, drawList);
+                    DrawHelper.DrawConditionalIcon(item.IconID, position, iconSize, Config.CooldownConfig.DrawIconBorder, 1, drawList, true);
                     if (Config.CooldownConfig.DrawIconCooldown) DrawHelper.DrawIconCooldown(position, iconSize, cooldown - timeSince, cooldown, drawList);
                     string cooldownString = Config.CooldownConfig.ShowCooldownAsMinutes ? Utils.DurationToString(cooldownLeft) : cooldownLeft.ToString();
 
@@ -194,13 +208,29 @@ namespace ZDs.Windows
             double time = recastTime > Config.GeneralConfig.TimelineTime ? Config.GeneralConfig.TimelineTime : recastTime;
             double powResult = Math.Pow(time, Config.GeneralConfig.TimelineCompression);
             double denominator = Math.Pow(Config.GeneralConfig.TimelineTime, Config.GeneralConfig.TimelineCompression);
-            float pos = (float)(powResult / denominator * (windowSize - Config.CooldownConfig.TimelineIconSize));
+            float pos = (float)(powResult / denominator * windowSize);
             
             return Config.GeneralConfig.TimelineOrientation switch
             {
                 Orientation.RightToLeft or Orientation.BottomToTop => pos,
                 Orientation.LeftToRight or Orientation.TopToBottom => windowSize - pos,
                 _ => pos // fallback
+            };
+        }
+        
+        private float GetPaddingForLabels()
+        {
+            int maxTime = Config.GeneralConfig.TimelineTime;
+            string maxLabel = Utils.DurationToString(maxTime);
+            Vector2 labelSize = ImGui.CalcTextSize(maxLabel);
+
+            float basePadding = Config.GridConfig.GridSegmentLabelOffset + 5;
+
+            return Config.GeneralConfig.TimelineOrientation switch
+            {
+                Orientation.LeftToRight or Orientation.RightToLeft => labelSize.X + basePadding,
+                Orientation.TopToBottom or Orientation.BottomToTop => labelSize.Y + basePadding,
+                _ => 0,
             };
         }
         
@@ -251,9 +281,23 @@ namespace ZDs.Windows
 
             ImDrawListPtr drawList = ImGui.GetWindowDrawList();
             Vector2 pos = ImGui.GetWindowPos();
-            float width = ImGui.GetWindowWidth();
-            float height = ImGui.GetWindowHeight();
+            Vector2 size = ImGui.GetWindowSize();
 
+            float padding = GetPaddingForLabels() * 2;
+            
+            if (Config.GeneralConfig.TimelineOrientation is Orientation.LeftToRight or Orientation.RightToLeft)
+            {
+                pos.X += padding / 2f;
+                size.X -= padding;
+            }
+            else if (Config.GeneralConfig.TimelineOrientation is Orientation.TopToBottom or Orientation.BottomToTop)
+            {
+                pos.Y += padding / 2f;
+                size.Y -= padding;
+            }
+            
+            float width = size.X;
+            float height = size.Y;
             
             int maxTime = Config.GeneralConfig.TimelineTime;
 
@@ -264,19 +308,21 @@ namespace ZDs.Windows
             
             if (Config.GridConfig.ShowGridCenterLine)
             {
+                Vector2 fullPos = ImGui.GetWindowPos();
+                Vector2 fullSize = ImGui.GetWindowSize();
                 Vector2 start, end;
 
                 if (Config.GeneralConfig.TimelineOrientation is Orientation.TopToBottom or Orientation.BottomToTop)
                 {
-                    float centerX = pos.X + width / 2f;
-                    start = new Vector2(centerX, pos.Y);
-                    end = new Vector2(centerX, pos.Y + height);
+                    float centerX = fullPos.X + fullSize.X / 2f;
+                    start = new Vector2(centerX, fullPos.Y);
+                    end = new Vector2(centerX, fullPos.Y + fullSize.Y);
                 }
                 else
                 {
-                    float centerY = pos.Y + height / 2f;
-                    start = new Vector2(pos.X, centerY);
-                    end = new Vector2(pos.X + width, centerY);
+                    float centerY = fullPos.Y + fullSize.Y / 2f;
+                    start = new Vector2(fullPos.X, centerY);
+                    end = new Vector2(fullPos.X + fullSize.X, centerY);
                 }
 
                 drawList.AddLine(start, end, lineColor, Config.GridConfig.GridLineWidth);

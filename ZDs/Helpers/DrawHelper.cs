@@ -66,6 +66,35 @@ namespace ZDs.Helpers
             }
         }
         
+        public static void DrawConditionalIcon(uint iconId, Vector2 position, Vector2 size, bool drawBorder, float alpha, ImDrawListPtr drawList, bool respectClipping)
+        {
+            if (respectClipping && Config.GeneralConfig.ShouldClip)
+            {
+                var clipHelper = Singletons.Get<ClipRectsHelper>();
+                ClipRect? clipRect = clipHelper.GetClipRectForArea(position, size);
+                
+                if (clipRect.HasValue)
+                {
+                    return;
+                }
+            }
+            
+            IDalamudTextureWrap? texture = TexturesHelper.GetTextureFromIconId(iconId);
+            if (texture == null) return;
+            
+            uint color = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 1, 1, alpha));
+            
+            ImGui.PushClipRect(Vector2.NegativeInfinity, Vector2.One * float.MaxValue, false);
+            drawList.AddImage(texture.ImGuiHandle, position, position + size, Vector2.Zero, Vector2.One, color);
+            
+            if (drawBorder)
+            {
+                drawList.AddRect(position, position + size, ImGui.ColorConvertFloat4ToU32(Config.CooldownConfig.BorderColor));
+            }
+            
+            ImGui.PopClipRect();
+        }
+        
         public static void DrawIcon<T>(dynamic row, Vector2 position, Vector2 size, bool drawBorder, bool cropIcon) where T : struct, IExcelRow<T>
         {
             IDalamudTextureWrap texture = TexturesHelper.GetTexture<T>(row);
@@ -84,8 +113,17 @@ namespace ZDs.Helpers
         }
         
         // By fel1n3 https://github.com/DelvUI/DelvUI/pull/1235
-        public static void DrawIconCooldown(Vector2 position, Vector2 size, double elapsed, double total, ImDrawListPtr drawList)
+        public static void DrawIconCooldown(Vector2 position, Vector2 size, double elapsed, double total, ImDrawListPtr drawList, bool respectClipping = true)
         {
+            if (respectClipping && Config.GeneralConfig.ShouldClip)
+            {
+                var clipHelper = Singletons.Get<ClipRectsHelper>();
+                ClipRect? clipRect = clipHelper.GetClipRectForArea(position, size);
+
+                if (clipRect.HasValue)
+                    return;
+            }
+            
             double completion = elapsed / total;
             int segments = (int)Math.Ceiling(completion * 4);
 
@@ -161,8 +199,19 @@ namespace ZDs.Helpers
             Plugin.NotificationManager.AddNotification(notification);
         }
         
-        public static void DrawOutlinedText(string text, Vector2 pos, uint color, uint outlineColor, ImDrawListPtr drawList, int thickness = 1)
+        public static void DrawOutlinedText(string text, Vector2 pos, uint color, uint outlineColor, ImDrawListPtr drawList, int thickness = 1, bool respectClipping = true)
         {
+            if (respectClipping && Config.GeneralConfig.ShouldClip)
+            {
+                var clipHelper = Singletons.Get<ClipRectsHelper>();
+                Vector2 textSize = ImGui.CalcTextSize(text);
+                ClipRect? clipRect = clipHelper.GetClipRectForArea(pos, textSize);
+
+                if (clipRect.HasValue)
+                    return;  // Skip drawing because it would be clipped
+            }
+            
+            ImGui.PushClipRect(Vector2.NegativeInfinity, Vector2.One * float.MaxValue, false);
             // outline
             for (int i = 1; i < thickness + 1; i++)
             {
@@ -178,6 +227,7 @@ namespace ZDs.Helpers
 
             // text
             drawList.AddText(new Vector2(pos.X, pos.Y), color, text);
+            ImGui.PopClipRect();
         }
 
         public static void DrawShadowText(string text, Vector2 pos, uint color, uint shadowColor, ImDrawListPtr drawList, int offset = 1, int thickness = 1)
@@ -194,7 +244,7 @@ namespace ZDs.Helpers
             drawList.AddText(new Vector2(pos.X, pos.Y), color, text);
         }
         
-                public static (bool, bool) DrawConfirmationModal(string title, string message)
+        public static (bool, bool) DrawConfirmationModal(string title, string message)
         {
             return DrawConfirmationModal(title, new string[] { message });
         }

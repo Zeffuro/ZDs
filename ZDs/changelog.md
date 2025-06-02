@@ -1,3 +1,7 @@
+# 1.1.0.1
+- Allow cooldowns to draw independently of timeline window
+- Fix timeline size being (partially) dependent on icon size 
+
 # 1.1.0.0
 - Add ability to change the timeline orientation
 - Added a lot more tooltips for clarification
