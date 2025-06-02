@@ -66,6 +66,7 @@ namespace ZDs.Config
                 ImGui.Checkbox("Duration in minutes", ref ShowCooldownAsMinutes);
             
                 ImGui.Combo("Rounding Mode", ref RoundingMode, new[] {"Truncate", "Floor", "Ceil", "Round"}, 4, 4);
+                DrawHelper.SetTooltip("Controls how cooldown timers are rounded for display. For example, 'Truncate' removes decimals, while 'Round' rounds to the nearest whole number.");
 
                 ImGui.NewLine();
 

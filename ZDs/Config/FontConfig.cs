@@ -52,6 +52,7 @@ namespace ZDs.Config
                     float cursorY = ImGui.GetCursorPosY();
                     ImGui.SetCursorPosY(cursorY + 2f);
                     ImGui.Text("Copy Font Folder Path to Clipboard: ");
+                    DrawHelper.SetTooltip("Place your custom font files (.ttf, .otf) in this folder. After adding new fonts, click the 'Reload Font List' button.");
                     ImGui.SameLine();
 
                     Vector2 buttonSize = new(40, 0);
@@ -74,6 +75,7 @@ namespace ZDs.Config
 
                     //DrawHelpers.DrawSpacing(1);
                     ImGui.Text("Font List");
+                    DrawHelper.SetTooltip("Custom fonts added here will be available for selection in other plugin settings.");
 
                     ImGuiTableFlags tableFlags =
                         ImGuiTableFlags.RowBg |

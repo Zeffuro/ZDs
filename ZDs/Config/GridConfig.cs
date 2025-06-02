@@ -74,19 +74,20 @@ namespace ZDs.Config
                         }
                         ImGui.NewLine();
                         DrawHelper.DrawNestIndicator(1);
-                        ImGui.Checkbox("Draw Segment Labels", ref GridShowSecondsText);
+                        ImGui.Checkbox("Draw Labels", ref GridShowSecondsText);
 
                         if (GridShowSecondsText)
                         {
                             DrawHelper.DrawNestIndicator(2);
                             DrawHelper.DrawFontSelector("Font##Name", ref GridFontKey, ref GridFontId);
                             DrawHelper.DrawNestIndicator(2);
-                            DrawHelper.DrawColorSelector("Segment Text Color", ref GridSegmentLabelColor);
+                            DrawHelper.DrawColorSelector("Text Color", ref GridSegmentLabelColor);
                             DrawHelper.DrawNestIndicator(2);
-                            DrawHelper.DrawColorSelector("Segment Text Outline Color", ref GridSegmentLabelOutlineColor);
+                            DrawHelper.DrawColorSelector("Text Outline Color", ref GridSegmentLabelOutlineColor);
                             ImGui.NewLine();
                             DrawHelper.DrawNestIndicator(2);
-                            ImGui.Checkbox("Segment Text Anchored Bottom", ref GridSegmentLabelAnchorBottom);
+                            ImGui.Checkbox("Label on Bottom / Left Side", ref GridSegmentLabelAnchorBottom);
+                            DrawHelper.SetTooltip("For horizontal timelines, this places labels at the bottom. For vertical timelines, it places them on the left.");
                             DrawHelper.DrawNestIndicator(2);
                             ImGui.DragFloat("Segment Text Offset", ref GridSegmentLabelOffset, 1f, 1, 100);
                             
@@ -99,9 +100,11 @@ namespace ZDs.Config
                 
                         ImGui.NewLine();
                         ImGui.Text("Current Segments:");
+                        DrawHelper.SetTooltip("These numbers represent time in seconds from the current moment, marking significant points on your timeline (e.g., 10 seconds, 30 seconds, 1 minute, 2 minutes).");
                         ImGui.Separator();
                 
                         ImGui.DragInt("", ref _segmentInput);
+                        DrawHelper.SetTooltip("Enter a time in seconds to add a new grid segment to the timeline.");
 
                         ImGui.SameLine();
                         ImGui.PushFont(UiBuilder.IconFont);

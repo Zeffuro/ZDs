@@ -154,10 +154,18 @@ namespace ZDs.Windows
                     var _ => 0
                 };
 
-                float posX = GetX(item.Cooldown / 10, (float)timeSince, width);
-                float posY = height / 2f;
-                
-                Vector2 position = new Vector2(pos.X + posX - iconSize.X / 2f, pos.Y + posY - iconSize.Y / 2f);
+                float dimension = Config.GeneralConfig.TimelineOrientation is Orientation.TopToBottom or Orientation.BottomToTop ? height : width;
+                float posAlongTimeline = GetPos(item.Cooldown / 10, (float)timeSince, dimension);
+
+                float posX = Config.GeneralConfig.TimelineOrientation is Orientation.LeftToRight or Orientation.RightToLeft
+                    ? pos.X + posAlongTimeline
+                    : pos.X + width / 2f;
+
+                float posY = Config.GeneralConfig.TimelineOrientation is Orientation.TopToBottom or Orientation.BottomToTop
+                    ? pos.Y + posAlongTimeline
+                    : pos.Y + height / 2f;
+
+                Vector2 position = new Vector2(posX - iconSize.X / 2f, posY - iconSize.Y / 2f);
 
                 if (timeSince < cooldown)
                 {
@@ -180,14 +188,61 @@ namespace ZDs.Windows
         }
 
 
-        public float GetX(float recast, float elapsedTime, float windowWidth)
+        public float GetPos(float recast, float elapsedTime, float windowSize)
         {
             double recastTime = recast - elapsedTime;
             double time = recastTime > Config.GeneralConfig.TimelineTime ? Config.GeneralConfig.TimelineTime : recastTime;
             double powResult = Math.Pow(time, Config.GeneralConfig.TimelineCompression);
             double denominator = Math.Pow(Config.GeneralConfig.TimelineTime, Config.GeneralConfig.TimelineCompression);
+            float pos = (float)(powResult / denominator * (windowSize - Config.CooldownConfig.TimelineIconSize));
             
-            return (float)(powResult / denominator * (windowWidth - Config.CooldownConfig.TimelineIconSize));
+            return Config.GeneralConfig.TimelineOrientation switch
+            {
+                Orientation.RightToLeft or Orientation.BottomToTop => pos,
+                Orientation.LeftToRight or Orientation.TopToBottom => windowSize - pos,
+                _ => pos // fallback
+            };
+        }
+        
+        private (Vector2 start, Vector2 end) GetGridLinePoints(Vector2 pos, float newPos, float width, float height, float lineHeight, Orientation orientation)
+        {
+            return orientation switch
+            {
+                Orientation.LeftToRight or Orientation.RightToLeft => (
+                    new Vector2(pos.X + newPos, pos.Y + height / 2f - lineHeight),
+                    new Vector2(pos.X + newPos, pos.Y + height / 2f + lineHeight)
+                ),
+                Orientation.TopToBottom or Orientation.BottomToTop => (
+                    new Vector2(pos.X + width / 2f - lineHeight, pos.Y + newPos),
+                    new Vector2(pos.X + width / 2f + lineHeight, pos.Y + newPos)
+                ),
+                _ => (
+                    new Vector2(pos.X + newPos, pos.Y + height / 2f - lineHeight),
+                    new Vector2(pos.X + newPos, pos.Y + height / 2f + lineHeight)
+                )
+            };
+        }
+
+        private Vector2 GetGridTextPosition(Vector2 pos, float newPos, float width, float height, Vector2 textSize, Orientation orientation, bool anchorBottom, float offset)
+        {
+            float gridLineHeight = Config.GridConfig.GridLineHeight;
+            return orientation switch
+            {
+                Orientation.LeftToRight or Orientation.RightToLeft => new Vector2(
+                    pos.X + newPos - textSize.X / 2, 
+                    anchorBottom ? (pos.Y + height / 2f + gridLineHeight + offset) : ((pos.Y + height / 2f - gridLineHeight - offset) - textSize.Y)
+                ),
+                
+                Orientation.TopToBottom or Orientation.BottomToTop => new Vector2(
+                    anchorBottom ? (pos.X + width / 2f - gridLineHeight - offset) - textSize.X : (pos.X + width / 2f + gridLineHeight + offset),
+                    pos.Y + newPos - textSize.Y / 2 
+                ),
+                
+                _ => new Vector2(
+                    pos.X + newPos - textSize.X / 2,
+                    anchorBottom ? pos.Y + height - textSize.Y - offset : pos.Y + offset
+                )
+            };
         }
         
         private void DrawGrid()
@@ -209,39 +264,50 @@ namespace ZDs.Windows
             
             if (Config.GridConfig.ShowGridCenterLine)
             {
-                drawList.AddLine(new Vector2(pos.X, pos.Y + height / 2f), new Vector2(pos.X + width, pos.Y + height / 2f), lineColor, Config.GridConfig.GridLineWidth);
+                Vector2 start, end;
+
+                if (Config.GeneralConfig.TimelineOrientation is Orientation.TopToBottom or Orientation.BottomToTop)
+                {
+                    float centerX = pos.X + width / 2f;
+                    start = new Vector2(centerX, pos.Y);
+                    end = new Vector2(centerX, pos.Y + height);
+                }
+                else
+                {
+                    float centerY = pos.Y + height / 2f;
+                    start = new Vector2(pos.X, centerY);
+                    end = new Vector2(pos.X + width, centerY);
+                }
+
+                drawList.AddLine(start, end, lineColor, Config.GridConfig.GridLineWidth);
             }
 
             if (!Config.GridConfig.GridDrawSegments) { return; }
+            
+            float dimension = Config.GeneralConfig.TimelineOrientation is Orientation.TopToBottom or Orientation.BottomToTop ? height : width;
 
             for (int i = 0; i <= maxTime; i++)
             {
-                float x = GetX(Config.GeneralConfig.TimelineTime, i, width);
+                float newPos = GetPos(Config.GeneralConfig.TimelineTime, i, dimension);
                 float elapsedTime = maxTime - i;
                 
                 if (Config.GridConfig.GridSegments.Contains(elapsedTime) && !(elapsedTime > maxTime))
                 {
                     if (Config.GridConfig.GridDrawSegmentLines)
                     {
-                        drawList.AddLine(
-                            new Vector2(pos.X + x, pos.Y + height / 2f - Config.GridConfig.GridLineHeight), // Adjust for lineHeight
-                            new Vector2(pos.X + x, pos.Y + height / 2f + Config.GridConfig.GridLineHeight), // Adjust for lineHeight
-                            lineColor, Config.GridConfig.GridLineWidth);
+                        var (start, end) = GetGridLinePoints(pos, newPos, width, height, Config.GridConfig.GridLineHeight, Config.GeneralConfig.TimelineOrientation);
+                        drawList.AddLine(start, end, lineColor, Config.GridConfig.GridLineWidth);
                     }
 
                     if (Config.GridConfig.GridShowSecondsText)
                     {
                         string text = Utils.DurationToString(elapsedTime);
                         Vector2 textSize = ImGui.CalcTextSize(text);
-                        float textPosX = pos.X + x - textSize.X / 2; // Center the text horizontally
-                        float textPosY = Config.GridConfig.GridSegmentLabelAnchorBottom
-                            ? pos.Y + height - textSize.Y - Config.GridConfig.GridSegmentLabelOffset
-                            : pos.Y + Config.GridConfig.GridSegmentLabelOffset;
-                        
+                        Vector2 textPos = GetGridTextPosition(pos, newPos, width, height, textSize, Config.GeneralConfig.TimelineOrientation, Config.GridConfig.GridSegmentLabelAnchorBottom, Config.GridConfig.GridSegmentLabelOffset);
 
                         using (FontsManager.PushFont(Config.GridConfig.GridFontKey))
                         {
-                            DrawHelper.DrawOutlinedText(text, new Vector2(textPosX, textPosY), gridSegmentTextColor, gridSegmentTextOutlineColor, drawList);
+                            DrawHelper.DrawOutlinedText(text, textPos, gridSegmentTextColor, gridSegmentTextOutlineColor, drawList);
                         }
                     }
                 }

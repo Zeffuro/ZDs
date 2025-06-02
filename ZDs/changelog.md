@@ -1,3 +1,7 @@
+# 1.1.0.0
+- Add ability to change the timeline orientation
+- Added a lot more tooltips for clarification
+
 # 1.0.0.8
 - Fix for Quest Items sometimes crashing
 

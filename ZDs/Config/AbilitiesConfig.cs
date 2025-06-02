@@ -46,6 +46,7 @@ namespace ZDs.Config
             {
                 bool changed = false;
                 ImGui.Checkbox("Ignore abilities with a recast time below: ", ref IgnoreAbilitiesBelow);
+                DrawHelper.SetTooltip("Abilities with a recast time less than or equal to this value will not be shown on the timeline. Useful for filtering out spammable or very short cooldown abilities.");
 
                 if (IgnoreAbilitiesBelow)
                 {
@@ -70,6 +71,7 @@ namespace ZDs.Config
                 if (ImGui.BeginChild("Filter Abilities", new Vector2(0, 360), false, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
                 {
                     ImGui.Checkbox("Filter Abilities", ref FilterAbilities);
+                    DrawHelper.SetTooltip("Enables filtering of abilities displayed on the timeline using either a blacklist or a whitelist, configurable below.");
 
                     if (FilterAbilities)
                     {
@@ -86,6 +88,7 @@ namespace ZDs.Config
                             changed |= AddNewEntry(_input, sheet);
                             ImGui.SetKeyboardFocusHere(-1);
                         }
+                        DrawHelper.SetTooltip("Enter the exact name or ID of an ability (e.g., 'Sprint' or '3'). Press Enter or click the '+' button to add it to the list.");
 
                         // add
                         ImGui.SameLine();

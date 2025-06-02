@@ -8,6 +8,14 @@ using Newtonsoft.Json;
 
 namespace ZDs.Config
 {
+    public enum Orientation
+    {
+        RightToLeft = 0,
+        LeftToRight = 1,
+        TopToBottom = 2,
+        BottomToTop = 3
+    }
+    
     public class GeneralConfig : IConfigPage
     {
         [JsonIgnore]
@@ -16,7 +24,9 @@ namespace ZDs.Config
         public string Name => "General";
         
         public Vector2 Position = new Vector2(ImGui.GetMainViewport().Size.X / 2, ImGui.GetMainViewport().Size.Y / 2);
-        public Vector2 Size = new Vector2(400, 80);
+        public Vector2 Size = new Vector2(400, 100);
+        
+        public Orientation TimelineOrientation = Orientation.RightToLeft;
         
         [JsonIgnore]
         public bool ShowingModalWindow = false;
@@ -55,10 +65,27 @@ namespace ZDs.Config
                 {
                     //ImGui.NewLine();
                     //ImGui.Checkbox("Preview", ref Preview);
-                     
+                    
                     Vector2 screenSize = ImGui.GetMainViewport().Size;
                     ImGui.DragFloat2("Position", ref Position, 1, -screenSize.X / 2, screenSize.X);
+                    
                     ImGui.DragFloat2("Size", ref Size, 1, 0, screenSize.X);
+                    
+                    ImGui.NewLine();
+                    
+                    Orientation oldOrientation = TimelineOrientation;
+                    if(ImGuiEx.EnumCombo("Timeline Orientation", ref TimelineOrientation,
+                        new[] { "Right to Left", "Left to Right", "Top to Bottom", "Bottom to Top" }))
+                    {
+                        bool oldIsHorizontal = oldOrientation is Orientation.LeftToRight or Orientation.RightToLeft;
+                        bool newIsHorizontal = TimelineOrientation is Orientation.LeftToRight or Orientation.RightToLeft;
+                        
+                        if (oldIsHorizontal != newIsHorizontal)
+                        {
+                            (Size.X, Size.Y) = (Size.Y, Size.X);
+                        }
+                    }
+                    DrawHelper.SetTooltip("Selects how the timeline is oriented (horizontal or vertical) and the direction of time progression for ability icons.");
                     
                     ImGui.NewLine();
                     ImGui.DragInt("Time (seconds)", ref TimelineTime, 0.1f, 1, 300);
@@ -82,8 +109,11 @@ namespace ZDs.Config
 
                     ImGui.NewLine();
                     ImGui.Checkbox("Locked", ref TimelineLocked);
+                    DrawHelper.SetTooltip("When enabled, the timeline window cannot be moved or resized. The background color will change to indicate its locked state.");
                     DrawHelper.DrawColorSelector("Locked Color", ref TimelineLockedBackgroundColor);
+                    DrawHelper.SetTooltip("The background color of the timeline window when it is locked.");
                     DrawHelper.DrawColorSelector("Unlocked Color", ref TimelineUnlockedBackgroundColor);
+                    DrawHelper.SetTooltip("The background color of the timeline window when it is unlocked (movable and resizable).");
 
                     ImGui.NewLine();
                     ImGui.Checkbox("Show Only In Duty", ref ShowTimelineOnlyInDuty);
