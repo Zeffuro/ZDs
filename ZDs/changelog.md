@@ -1,3 +1,6 @@
+# 1.1.0.2
+- Fix configuration window opening in the topleft of the screen
+
 # 1.1.0.1
 - Allow cooldowns to draw independently of timeline window
 - Fix timeline size being (partially) dependent on icon size 
