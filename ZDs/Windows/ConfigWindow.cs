@@ -15,8 +15,10 @@ namespace ZDs.Windows
 
         private bool _back = false;
         private bool _home = false;
+        private bool _firstOpen = true;
         private string _name = string.Empty;
         private Vector2 _windowSize;
+        private Vector2 _windowPosition;
         private readonly Stack<IConfigurable> _configStack;
 
         public ConfigWindow(string id, Vector2 position, Vector2 size) : base(id)
@@ -27,7 +29,7 @@ namespace ZDs.Windows
                 ImGuiWindowFlags.NoScrollWithMouse |
                 ImGuiWindowFlags.NoSavedSettings;
 
-            this.Position = position - size / 2;
+            _windowPosition = position - size / 2;
             this.PositionCondition = ImGuiCond.Appearing;
             this.SizeConstraints = new WindowSizeConstraints()
             {
@@ -43,6 +45,7 @@ namespace ZDs.Windows
         {
             _configStack.Push(configItem);
             _name = configItem.Name;
+            _firstOpen = true;
             this.IsOpen = true;
         }
 
@@ -55,6 +58,7 @@ namespace ZDs.Windows
             else
             {
                 _configStack.Push(Plugin.Config);
+                _firstOpen = true;
             }
             IsOpen = !IsOpen;
         }
@@ -64,7 +68,12 @@ namespace ZDs.Windows
             if (_configStack.Count != 0)
             {
                 this.WindowName = string.Join("  >  ", _configStack.Reverse().Select(c => c.Name));
-                ImGui.SetNextWindowSize(_windowSize);
+                
+                if (_firstOpen)
+                {
+                    ImGui.SetNextWindowSize(_windowSize, ImGuiCond.Always);
+                    ImGui.SetNextWindowPos(_windowPosition, ImGuiCond.Always);
+                }
             }
         }
 
@@ -100,8 +109,10 @@ namespace ZDs.Windows
                 ImGui.EndTabBar();
             }
 
-            this.Position = ImGui.GetWindowPos();
+            _windowPosition = ImGui.GetWindowPos();
             _windowSize = ImGui.GetWindowSize();
+            
+            _firstOpen = false;
         }
 
         public override void PostDraw()
