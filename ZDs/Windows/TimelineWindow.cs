@@ -140,8 +140,9 @@ namespace ZDs.Windows
                              .Select(x => x.Item)
                              .ToList();
             
-            foreach (var item in sortedList)
+            for (int i = 0; i < sortedList.Count; i++)
             {
+                var item = sortedList[i];
                 Vector2 iconSize = defaultSize;
                 uint textColor = defaultTextColor;
                 uint textOutlineColor = defaultTextOutlineColor;
@@ -180,6 +181,24 @@ namespace ZDs.Windows
                     : pos.Y + height / 2f;
 
                 Vector2 position = new Vector2(posX - iconSize.X / 2f, posY - iconSize.Y / 2f);
+                
+                if (Config.CooldownConfig.CooldownIconOffsetEnabled)
+                {
+                    int effectiveIndex = Config.CooldownConfig.CooldownIconOffsetInverted
+                        ? i
+                        : sortedList.Count - 1 - i;
+
+                    float offsetAmount = Config.CooldownConfig.CooldownIconOffset * effectiveIndex;
+                    
+                    Vector2 offsetDir = Config.GeneralConfig.TimelineOrientation switch
+                    {
+                        Orientation.LeftToRight or Orientation.RightToLeft => new Vector2(0, 1),
+                        Orientation.TopToBottom or Orientation.BottomToTop => new Vector2(1, 0),
+                        _ => Vector2.Zero
+                    };
+
+                    position += -offsetDir * offsetAmount;
+                }
 
                 if (timeSince < cooldown)
                 {

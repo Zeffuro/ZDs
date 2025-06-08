@@ -27,6 +27,10 @@ namespace ZDs.Config
         public string CooldownThresholdFontKey = FontsManager.DefaultBigFontKey;
         public int CooldownThresholdFontId = 0;
         
+        public bool CooldownIconOffsetEnabled = false;
+        public bool CooldownIconOffsetInverted = false;
+        public int CooldownIconOffset = 5;
+        
         public ConfigColor CooldownTextThresholdColor = new ConfigColor(1f, 0f, 0f, 1f);
         public ConfigColor CooldownTextOutlineThresholdColor = new ConfigColor(0f, 0f, 0f, 1f);
         
@@ -60,6 +64,20 @@ namespace ZDs.Config
                 ImGui.NewLine();
             
                 ImGui.Checkbox("Draw Cooldown Swipe", ref DrawIconCooldown);
+                
+                ImGui.NewLine();
+                ImGui.Checkbox("Offset Cooldown Icons", ref CooldownIconOffsetEnabled);
+                DrawHelper.SetTooltip("When enabled, each cooldown icon will be slightly offset to prevent overlap.");
+                
+                if (CooldownIconOffsetEnabled)
+                {
+                    DrawHelper.DrawNestIndicator(1);
+                    ImGui.DragInt("Offset Amount", ref CooldownIconOffset, 1, -50, 50);
+                    DrawHelper.SetTooltip("The amount to offset each cooldown icon. Positive values move icons down or right, depending on timeline orientation.");
+                    DrawHelper.DrawNestIndicator(1);
+                    ImGui.Checkbox("Invert Offset Direction", ref CooldownIconOffsetInverted);
+                    DrawHelper.SetTooltip("If enabled, the icon offset starts at the start of the timeline instead of the end. Default behavior is offset starting at the end.");
+                }
             
                 ImGui.NewLine();
 
