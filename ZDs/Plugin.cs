@@ -51,8 +51,6 @@ namespace ZDs
         private static WindowSystem _windowSystem = null!;
         private static ConfigWindow _configWindow = null!;
         private static TimelineWindow _timelineWindow = null!;
-        private Vector2 _origin;
-
 
         public Plugin(
             IClientState clientState,
@@ -149,8 +147,7 @@ namespace ZDs
 
         private void CreateWindows()
         {
-            _origin = ImGui.GetMainViewport().Size / 2f;
-            _configWindow = new ConfigWindow($"ZDs v{Version}", _origin, new Vector2(700, 700));
+            _configWindow = new ConfigWindow($"ZDs v{Version}", new Vector2(700, 700));
             _timelineWindow = new TimelineWindow("ZDS_Timeline");
 
             _windowSystem = new WindowSystem("ZDs_Windows");

@@ -21,15 +21,14 @@ namespace ZDs.Windows
         private Vector2 _windowPosition;
         private readonly Stack<IConfigurable> _configStack;
 
-        public ConfigWindow(string id, Vector2 position, Vector2 size) : base(id)
+        public ConfigWindow(string id, Vector2 size) : base(id)
         {
             this.Flags =
                 ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoCollapse |
                 ImGuiWindowFlags.NoScrollWithMouse |
                 ImGuiWindowFlags.NoSavedSettings;
-
-            _windowPosition = position - size / 2;
+            
             this.PositionCondition = ImGuiCond.Appearing;
             this.SizeConstraints = new WindowSizeConstraints()
             {
@@ -68,11 +67,18 @@ namespace ZDs.Windows
             if (_configStack.Count != 0)
             {
                 this.WindowName = string.Join("  >  ", _configStack.Reverse().Select(c => c.Name));
-                
+
                 if (_firstOpen)
                 {
-                    ImGui.SetNextWindowSize(_windowSize, ImGuiCond.Always);
-                    ImGui.SetNextWindowPos(_windowPosition, ImGuiCond.Always);
+                    var viewport = ImGui.GetMainViewport();
+                    if (viewport.Size.X > 0 && viewport.Size.Y > 0)
+                    {
+                        _windowSize = new Vector2(700, 700); // Or your default size
+                        _windowPosition = viewport.Pos + viewport.Size / 2f - _windowSize / 2f;
+
+                        ImGui.SetNextWindowSize(_windowSize, ImGuiCond.FirstUseEver);
+                        ImGui.SetNextWindowPos(_windowPosition, ImGuiCond.FirstUseEver);
+                    }
                 }
             }
         }

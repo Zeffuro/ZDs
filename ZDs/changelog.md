@@ -1,5 +1,7 @@
 # 1.1.0.2
-- Fix configuration window opening in the topleft of the screen
+- Fixed issue where the configuration window would sometimes open in the top-left corner of the screen
+- Added support for progressive cooldown icon offset in the timeline to reduce overlap
+- Added option to display segment labels in seconds instead of formatted minutes
 
 # 1.1.0.1
 - Allow cooldowns to draw independently of timeline window
