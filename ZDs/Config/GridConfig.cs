@@ -32,6 +32,7 @@ namespace ZDs.Config
         
         public ConfigColor GridSegmentLabelColor = new ConfigColor(1f, 1f, 1f, 1f);
         public ConfigColor GridSegmentLabelOutlineColor = new ConfigColor(0f, 0f, 0f, 1f);
+        public bool GridSegmentLabelsFormatDuration = true;
         
         public float GridSegmentLabelOffset = 5f;
         public bool GridSegmentLabelAnchorBottom = true;
@@ -85,6 +86,9 @@ namespace ZDs.Config
                             DrawHelper.DrawNestIndicator(2);
                             DrawHelper.DrawColorSelector("Text Outline Color", ref GridSegmentLabelOutlineColor);
                             ImGui.NewLine();
+                            
+                            DrawHelper.DrawNestIndicator(2);
+                            ImGui.Checkbox("Duration in minutes", ref GridSegmentLabelsFormatDuration);
                             DrawHelper.DrawNestIndicator(2);
                             ImGui.Checkbox("Label on Bottom / Left Side", ref GridSegmentLabelAnchorBottom);
                             DrawHelper.SetTooltip("For horizontal timelines, this places labels at the bottom. For vertical timelines, it places them on the left.");

@@ -347,7 +347,7 @@ namespace ZDs.Windows
 
                     if (Config.GridConfig.GridShowSecondsText)
                     {
-                        string text = Utils.DurationToString(elapsedTime);
+                        string text = Config.GridConfig.GridSegmentLabelsFormatDuration ? Utils.DurationToString(elapsedTime) : elapsedTime.ToString();
                         Vector2 textSize = ImGui.CalcTextSize(text);
                         Vector2 textPos = GetGridTextPosition(pos, newPos, width, height, textSize, Config.GeneralConfig.TimelineOrientation, Config.GridConfig.GridSegmentLabelAnchorBottom, Config.GridConfig.GridSegmentLabelOffset);
 
