@@ -61,6 +61,11 @@ namespace ZDs.Helpers
             MaxCharges = maxCharges;
             ActiveCharges = maxCharges;
         }
+
+        public override string ToString() =>
+            $"ActionID={ActionID}, IconID={IconID}, Type={Type}, Time={Time:F2}, " +
+            $"GCDDuration={GCDDuration:F2}, CastTime={CastTime:F2}, Cooldown={Cooldown:F2}, " +
+            $"MaxCharges={MaxCharges}, ActiveCharges={ActiveCharges}";
     }
 
     public class TimelineManager
@@ -221,6 +226,17 @@ namespace ZDs.Helpers
             [18806] = 2904, // chi
             [18807] = 2904, // jin
         };
+        
+        private static readonly (uint ActionId, TimelineItemType Type)[] _previewScript =
+        [
+            (110, TimelineItemType.OffGCD),
+            (2874, TimelineItemType.OffGCD),
+            (7561, TimelineItemType.OffGCD),
+            (7562, TimelineItemType.OffGCD),
+            (7531, TimelineItemType.OffGCD),
+            (34675, TimelineItemType.OffGCD),
+            (43, TimelineItemType.OffGCD),
+        ];
 
         private static int kMaxItemCount = 50;
         private List<TimelineItem> _items = new List<TimelineItem>(kMaxItemCount);
@@ -232,12 +248,32 @@ namespace ZDs.Helpers
         private bool _hadSwiftcast = false;
         private bool _hadMudra = false;
         private bool _hadMB = false;
+        
+        private bool _isPreviewActive = false;
 
 
         private unsafe void Update(IFramework framework)
         {
+            CheckPreview();
             CheckStatuses();
             CheckCooldown();
+        }
+
+        private void CheckPreview()
+        {
+            if ((Config?.GeneralConfig?.Preview ?? false) == _isPreviewActive)
+                return;
+
+            _isPreviewActive = !_isPreviewActive;
+
+            if (_isPreviewActive)
+            {
+                LoadPreview();
+            }
+            else
+            {
+                ResetCooldowns();
+            }
         }
 
         private void CheckStatuses()
@@ -318,7 +354,7 @@ namespace ZDs.Helpers
             return (float)ActionManager.GetAdjustedCastTime(ActionType.Action, adjustedId) / 1000f;
         }
 
-        private void AddItem(uint actionId, TimelineItemType type)
+        private void AddItem(uint actionId, TimelineItemType type, bool isPreviewItem = false)
         {
             if (!_sheet.TryGetRow(actionId, out LuminaAction action))
             {
@@ -339,6 +375,11 @@ namespace ZDs.Helpers
             float cooldown = (chargeTime != 0
                 ? Math.Abs(recastInfo.RecastTime - recastInfo.RecastTimeElapsed) % chargeTime
                 : 0) * 10;
+
+            if (isPreviewItem)
+            {
+                cooldown = action.Recast100ms;
+            }
 
             // only cache the last kMaxItemCount items
             if (_items.Count >= kMaxItemCount)
@@ -430,6 +471,14 @@ namespace ZDs.Helpers
             TimelineItem item = new TimelineItem(actionId, (uint)iconId, type, now, gcdDuration, castTime, cooldown, stacks);
             _items.Add(item);
             SortTimeline();
+        }
+        
+        private void LoadPreview()
+        {
+            foreach (var (actionId, type) in _previewScript)
+            {
+                AddItem(actionId, type, true);
+            }
         }
 
         private void SortTimeline()

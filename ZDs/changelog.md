@@ -1,3 +1,6 @@
+# 1.1.0.3
+- Add a preview mode
+
 # 1.1.0.2
 - Fixed issue where the configuration window would sometimes open in the top-left corner of the screen
 - Added support for progressive cooldown icon offset in the timeline to reduce overlap

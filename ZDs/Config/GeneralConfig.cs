@@ -63,8 +63,8 @@ namespace ZDs.Config
 
                 if (ShowTimeline)
                 {
-                    //ImGui.NewLine();
-                    //ImGui.Checkbox("Preview", ref Preview);
+                    ImGui.Checkbox("Preview", ref Preview);
+                    ImGui.NewLine();
                     
                     Vector2 screenSize = ImGui.GetMainViewport().Size;
                     ImGui.DragFloat2("Position", ref Position, 1, -screenSize.X / 2, screenSize.X);

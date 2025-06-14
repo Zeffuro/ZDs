@@ -105,7 +105,6 @@ namespace ZDs
                 new CommandInfo(PluginCommand)
                 {
                     HelpMessage = "Opens the ZDs configuration window.",
-
                     ShowInHelp = true
                 }
             );
@@ -120,6 +119,9 @@ namespace ZDs
             // Load config
             FontsManager.CopyPluginFontsToUserPath();
             Config = ConfigHelpers.LoadConfig(ConfigFilePath);
+            
+            // Disable preview
+            Config.GeneralConfig.Preview = false;
 
             // Refresh fonts
             Config.FontConfig.RefreshFontList();
@@ -194,7 +196,6 @@ namespace ZDs
             }
 
             _timelineWindow.IsOpen = show;
-            //Logger.Information($"{_timelineWindow.Size} | {_timelineWindow.Position}");
         }
 
         private void OpenConfigUi() => ToggleSettingsWindow();
