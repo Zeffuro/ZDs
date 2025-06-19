@@ -150,7 +150,7 @@ namespace ZDs.Helpers
         private Hook<OnCastDelegate>? _onCastHook;
 
         private ExcelSheet<LuminaAction> _sheet;
-        private Dictionary<uint, uint> _specialCasesMap = new()
+        private static readonly Dictionary<uint, uint> _specialCasesMap = new()
         {
             // BRD
             [110] = 110,    // bloodletter
@@ -191,7 +191,7 @@ namespace ZDs.Helpers
             [34623] = 34620, // vice Pit
             
         };
-        private Dictionary<uint, float> _hardcodedCasesMap = new()
+        private static readonly Dictionary<uint, float> _hardcodedCasesMap = new()
         {
             // NIN
             [2259] = 0.5f, // ten
@@ -212,7 +212,14 @@ namespace ZDs.Helpers
             [16492] = 1.5f, // hyosho ranryu
         };
         
-        private Dictionary<uint, uint> _hardcodedIconIds = new()
+        private static readonly HashSet<uint> _mudraActionIds = new()
+        {
+            2259,   // ten
+            2261,   // chi
+            2263,   // jin
+        };
+        
+        private static readonly Dictionary<uint, uint> _hardcodedIconIds = new()
         {
             // General
             [1] = 101,
@@ -229,13 +236,13 @@ namespace ZDs.Helpers
         
         private static readonly (uint ActionId, TimelineItemType Type)[] _previewScript =
         [
-            (110, TimelineItemType.OffGCD),
-            (2874, TimelineItemType.OffGCD),
-            (7561, TimelineItemType.OffGCD),
-            (7562, TimelineItemType.OffGCD),
-            (7531, TimelineItemType.OffGCD),
-            (34675, TimelineItemType.OffGCD),
-            (43, TimelineItemType.OffGCD),
+            (110, TimelineItemType.OffGCD),     // Bloodletter
+            (2874, TimelineItemType.OffGCD),    // Gauss Round
+            (7561, TimelineItemType.OffGCD),    // Swiftcast
+            (7562, TimelineItemType.OffGCD),    // Lucid Dreaming
+            (7531, TimelineItemType.OffGCD),    // Rampart
+            (34675, TimelineItemType.OffGCD),   // Starry Muse
+            (43, TimelineItemType.OffGCD),      // Holmgang
         ];
 
         private static int kMaxItemCount = 50;
@@ -252,7 +259,7 @@ namespace ZDs.Helpers
         private bool _isPreviewActive = false;
 
 
-        private unsafe void Update(IFramework framework)
+        private void Update(IFramework framework)
         {
             CheckPreview();
             CheckStatuses();
@@ -279,12 +286,13 @@ namespace ZDs.Helpers
         private void CheckStatuses()
         {
             IPlayerCharacter? player = Plugin.ClientState.LocalPlayer;
-            if (player != null)
-            {
-                _hadSwiftcast = player.StatusList.Any(s => s.StatusId == 167);
-                _hadMudra = player.StatusList.Any(s => s.StatusId == 496);
-                _hadMB = player.StatusList.Any(s => s.StatusId == 2217 && s.SourceId == player.GameObjectId);
-            }
+
+            if (player == null)
+                return;
+
+            _hadSwiftcast = player.StatusList.Any(s => s.StatusId == 167);
+            _hadMudra = player.StatusList.Any(s => s.StatusId == 496);
+            _hadMB = player.StatusList.Any(s => s.StatusId == 2217 && s.SourceId == player.GameObjectId);
         }
         
         private void CheckCooldown()
@@ -338,20 +346,6 @@ namespace ZDs.Helpers
                     timelineItem.Time = ImGui.GetTime() - cooldownLeft;
                 }
             }
-        }
-
-        private unsafe float GetGCDTime(uint actionId)
-        {
-            ActionManager* actionManager = ActionManager.Instance();
-            uint adjustedId = actionManager->GetAdjustedActionId(actionId);
-            return actionManager->GetRecastTime(ActionType.Action, adjustedId);
-        }
-
-        private unsafe float GetCastTime(uint actionId)
-        {
-            ActionManager* actionManager = ActionManager.Instance();
-            uint adjustedId = actionManager->GetAdjustedActionId(actionId);
-            return (float)ActionManager.GetAdjustedCastTime(ActionType.Action, adjustedId) / 1000f;
         }
 
         private void AddItem(uint actionId, TimelineItemType type, bool isPreviewItem = false)
@@ -420,13 +414,12 @@ namespace ZDs.Helpers
             }
             
             // Ninja's Hide restores Mudra Charges
-            uint[] mudraActionIds = [2259, 2261, 2263];
             if (actionId == 2245)
             {
-                _items.RemoveAll(item => mudraActionIds.Contains(item.ActionID));
+                _items.RemoveAll(item => _mudraActionIds.Contains(item.ActionID));
             }
 
-            if (mudraActionIds.Contains(actionId) && _hadMudra)
+            if (_mudraActionIds.Contains(actionId) && _hadMudra)
             {
                 return;
             }
@@ -443,8 +436,8 @@ namespace ZDs.Helpers
             // calculate gcd and cast time
             if (type == TimelineItemType.CastStart)
             {
-                gcdDuration = GetGCDTime(actionId);
-                castTime = GetCastTime(actionId);
+                gcdDuration = actionHelper.GetGCDTime(actionId);
+                castTime = actionHelper.GetCastTime(actionId);
             }
             else if (type == TimelineItemType.Action)
             {
@@ -456,8 +449,8 @@ namespace ZDs.Helpers
                 }
                 else
                 {
-                    gcdDuration = GetGCDTime(actionId);
-                    castTime = _hadSwiftcast ? 0 : GetCastTime(actionId);
+                    gcdDuration = actionHelper.GetGCDTime(actionId);
+                    castTime = _hadSwiftcast ? 0 : actionHelper.GetCastTime(actionId);
                 }
             }
 

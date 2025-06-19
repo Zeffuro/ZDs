@@ -47,6 +47,8 @@ public class ActionsHelper
         return;
     }
     
+    public unsafe float GetGCDTime(uint actionId) => _actionManager->GetRecastTime(ActionType.Action, _actionManager->GetAdjustedActionId(actionId));
+    public unsafe float GetCastTime(uint actionId) => ActionManager.GetAdjustedCastTime(ActionType.Action, _actionManager->GetAdjustedActionId(actionId)) / 1000f;
     public unsafe uint GetSpellActionId(uint actionId) => _actionManager->GetAdjustedActionId(actionId);
     public unsafe float GetRecastTime(uint actionId) => _actionManager->GetRecastTime(ActionType.Action, GetSpellActionId(actionId));
     public unsafe float GetRecastTimeElapsed(uint actionId) => _actionManager->GetRecastTimeElapsed(ActionType.Action, GetSpellActionId(actionId));
