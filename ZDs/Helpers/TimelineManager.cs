@@ -4,7 +4,7 @@ using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Hooking;
 using Dalamud.Logging;
 using FFXIVClientStructs.FFXIV.Client.Game;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using Lumina.Excel;
 using System;
 using System.Collections.Generic;
@@ -70,10 +70,133 @@ namespace ZDs.Helpers
 
     public class TimelineManager
     {
-        #region singleton
+        private const int MaxItemCount = 50;
+        private const int ActionIdOffset = 65536;
+        private const uint FadeoutDirectValue = 0x4000000F;
+
+        private static readonly Dictionary<uint, uint> _specialCasesMap = new()
+        {
+            // BRD
+            [110] = 110,    // bloodletter
+            [117] = 110,    // rain of death
+            [36975] = 110,  // bloodletter
+
+            // MCH
+            [16498] = 16498, // drill
+            [16499] = 16498, // bio blaster
+
+            // MNK
+            [16475] = 53,   // anatman
+
+            // NIN
+            [2259] = 2259,   // ten
+            [2261] = 2259,   // chi
+            [2263] = 2259,   // jin
+            [18805] = 18805, // ten
+            [18806] = 18805, // chi
+            [18807] = 18805, // jin
+
+            // SAM
+            [16484] = 7477, // kaeshi higanbana
+            [16485] = 7477, // kaeshi goken
+            [16486] = 7477, // keashi setsugekka
+
+            // RDM
+            [25858] = 7504,  // resolution
+            [16527] = 16527, // engagement
+            [7515] = 16527, // displacement
+
+            // RPR
+            [24380] = 24380, // soul slice
+            [24381] = 24380, // soul scythe
+
+            // VPR
+            [34620] = 34620, // vicewinder
+            [34623] = 34620, // vice Pit
+
+        };
+        private static readonly Dictionary<uint, float> _hardcodedCasesMap = new()
+        {
+            // NIN
+            [2259] = 0.5f, // ten
+            [2261] = 0.5f, // chi
+            [2263] = 0.5f, // jin
+            [18805] = 0.5f, // ten
+            [18806] = 0.5f, // chi
+            [18807] = 0.5f, // jin
+            [2265] = 1.5f, // fuma shuriken
+            [2266] = 1.5f, // katon
+            [2267] = 1.5f, // raiton
+            [2268] = 1.5f, // hyoton
+            [2269] = 1.5f, // huton
+            [2270] = 1.5f, // doton
+            [2271] = 1.5f, // suiton
+            [2272] = 1.5f, // rabbit medium
+            [16491] = 1.5f, // goka mekkyaku
+            [16492] = 1.5f, // hyosho ranryu
+        };
+
+        private static readonly HashSet<uint> _mudraActionIds = new()
+        {
+            2259,   // ten
+            2261,   // chi
+            2263,   // jin
+        };
+
+        private static readonly Dictionary<uint, uint> _hardcodedIconIds = new()
+        {
+            // General
+            [1] = 101,
+            [3] = 104,
+
+            // NIN
+            [2259] = 2904,  // ten
+            [2261] = 2904,  // chi
+            [2263] = 2904,  // jin
+            [18805] = 2904, // ten
+            [18806] = 2904, // chi
+            [18807] = 2904, // jin
+        };
+
+        private static readonly (uint ActionId, TimelineItemType Type)[] _previewScript =
+        [
+            (110, TimelineItemType.OffGCD),     // Bloodletter
+            (2874, TimelineItemType.OffGCD),    // Gauss Round
+            (7561, TimelineItemType.OffGCD),    // Swiftcast
+            (7562, TimelineItemType.OffGCD),    // Lucid Dreaming
+            (7531, TimelineItemType.OffGCD),    // Rampart
+            (34675, TimelineItemType.OffGCD),   // Starry Muse
+            (43, TimelineItemType.OffGCD),      // Holmgang
+        ];
+
+
+        private List<TimelineItem> _items = new List<TimelineItem>(MaxItemCount);
+        private readonly ExcelSheet<LuminaAction> _sheet;
+
+        private Hook<ActionEffectHandler.Delegates.Receive>? _onActionUsedHook;
+
+        private delegate void OnActorControlDelegate(uint entityId, uint id, uint unk1, uint type, uint unk2, uint unk3, uint unk4, uint unk5, UInt64 targetId, byte unk6);
+        private Hook<OnActorControlDelegate>? _onActorControlHook;
+
+        private delegate void OnCastDelegate(uint sourceId, IntPtr sourceCharacter);
+        private Hook<OnCastDelegate>? _onCastHook;
+
+
+
+        private double _outOfCombatStartTime = -1;
+        private bool _hadSwiftcast = false;
+        private bool _hadMudra = false;
+        private bool _hadMB = false;
+
+        private bool _isPreviewActive = false;
+
+        private bool _disposed = false;
+
         public static void Initialize() { Instance = new TimelineManager(); }
 
         public static TimelineManager Instance { get; private set; } = null!;
+        public IReadOnlyCollection<TimelineItem> Items => _items.AsReadOnly();
+        private ZDsConfig Config => Plugin.Config;
 
         public unsafe TimelineManager()
         {
@@ -118,8 +241,11 @@ namespace ZDs.Helpers
             GC.SuppressFinalize(this);
         }
 
-        protected void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
+            if (_disposed) return;
+            _disposed = true;
+
             if (!disposing)
             {
                 return;
@@ -131,132 +257,16 @@ namespace ZDs.Helpers
 
             _onActionUsedHook?.Disable();
             _onActionUsedHook?.Dispose();
+            _onActionUsedHook = null;
 
             _onActorControlHook?.Disable();
             _onActorControlHook?.Dispose();
+            _onActorControlHook = null;
 
             _onCastHook?.Disable();
             _onCastHook?.Dispose();
+            _onCastHook = null;
         }
-        #endregion
-
-        private delegate void OnActionUsedDelegate(uint sourceId, IntPtr sourceCharacter, IntPtr pos, IntPtr effectHeader, IntPtr effectArray, IntPtr effectTrail);
-        private Hook<ActionEffectHandler.Delegates.Receive>? _onActionUsedHook;
-
-        private delegate void OnActorControlDelegate(uint entityId, uint id, uint unk1, uint type, uint unk2, uint unk3, uint unk4, uint unk5, UInt64 targetId, byte unk6);
-        private Hook<OnActorControlDelegate>? _onActorControlHook;
-
-        private delegate void OnCastDelegate(uint sourceId, IntPtr sourceCharacter);
-        private Hook<OnCastDelegate>? _onCastHook;
-
-        private ExcelSheet<LuminaAction> _sheet;
-        private static readonly Dictionary<uint, uint> _specialCasesMap = new()
-        {
-            // BRD
-            [110] = 110,    // bloodletter
-            [117] = 110,    // rain of death
-            [36975] = 110,  // bloodletter
-            
-            // MCH
-            [16498] = 16498, // drill
-            [16499] = 16498, // bio blaster
-            
-            // MNK
-            [16475] = 53,   // anatman
-
-            // NIN
-            [2259] = 2259,   // ten
-            [2261] = 2259,   // chi
-            [2263] = 2259,   // jin
-            [18805] = 18805, // ten
-            [18806] = 18805, // chi
-            [18807] = 18805, // jin
-            
-            // SAM
-            [16484] = 7477, // kaeshi higanbana
-            [16485] = 7477, // kaeshi goken
-            [16486] = 7477, // keashi setsugekka
-
-            // RDM
-            [25858] = 7504,  // resolution
-            [16527] = 16527, // engagement
-            [7515] = 16527, // displacement
-            
-            // RPR
-            [24380] = 24380, // soul slice
-            [24381] = 24380, // soul scythe
-            
-            // VPR
-            [34620] = 34620, // vicewinder
-            [34623] = 34620, // vice Pit
-            
-        };
-        private static readonly Dictionary<uint, float> _hardcodedCasesMap = new()
-        {
-            // NIN
-            [2259] = 0.5f, // ten
-            [2261] = 0.5f, // chi
-            [2263] = 0.5f, // jin
-            [18805] = 0.5f, // ten
-            [18806] = 0.5f, // chi
-            [18807] = 0.5f, // jin
-            [2265] = 1.5f, // fuma shuriken
-            [2266] = 1.5f, // katon
-            [2267] = 1.5f, // raiton
-            [2268] = 1.5f, // hyoton
-            [2269] = 1.5f, // huton
-            [2270] = 1.5f, // doton
-            [2271] = 1.5f, // suiton
-            [2272] = 1.5f, // rabbit medium
-            [16491] = 1.5f, // goka mekkyaku
-            [16492] = 1.5f, // hyosho ranryu
-        };
-        
-        private static readonly HashSet<uint> _mudraActionIds = new()
-        {
-            2259,   // ten
-            2261,   // chi
-            2263,   // jin
-        };
-        
-        private static readonly Dictionary<uint, uint> _hardcodedIconIds = new()
-        {
-            // General
-            [1] = 101,
-            [3] = 104,
-            
-            // NIN
-            [2259] = 2904,  // ten
-            [2261] = 2904,  // chi
-            [2263] = 2904,  // jin
-            [18805] = 2904, // ten
-            [18806] = 2904, // chi
-            [18807] = 2904, // jin
-        };
-        
-        private static readonly (uint ActionId, TimelineItemType Type)[] _previewScript =
-        [
-            (110, TimelineItemType.OffGCD),     // Bloodletter
-            (2874, TimelineItemType.OffGCD),    // Gauss Round
-            (7561, TimelineItemType.OffGCD),    // Swiftcast
-            (7562, TimelineItemType.OffGCD),    // Lucid Dreaming
-            (7531, TimelineItemType.OffGCD),    // Rampart
-            (34675, TimelineItemType.OffGCD),   // Starry Muse
-            (43, TimelineItemType.OffGCD),      // Holmgang
-        ];
-
-        private static int kMaxItemCount = 50;
-        private List<TimelineItem> _items = new List<TimelineItem>(kMaxItemCount);
-        public IReadOnlyCollection<TimelineItem> Items => _items.AsReadOnly();
-
-        private ZDsConfig Config => Plugin.Config;
-
-        private double _outOfCombatStartTime = -1;
-        private bool _hadSwiftcast = false;
-        private bool _hadMudra = false;
-        private bool _hadMB = false;
-        
-        private bool _isPreviewActive = false;
 
 
         private void Update(IFramework framework)
@@ -294,7 +304,7 @@ namespace ZDs.Helpers
             _hadMudra = player.StatusList.Any(s => s.StatusId == 496);
             _hadMB = player.StatusList.Any(s => s.StatusId == 2217 && s.SourceId == player.GameObjectId);
         }
-        
+
         private void CheckCooldown()
         {
             if (_hadMB)
@@ -302,17 +312,20 @@ namespace ZDs.Helpers
                 // Handle Bloodletter and their upgraded counterparts
                 HandleSpecialChargedActions([110]);
             }
-            
-            foreach (var item in _items.ToList().Where(item => ImGui.GetTime() - item.Time > item.Cooldown / 10))
-            {
-                if (item.MaxCharges > 0 && item.ActiveCharges != item.MaxCharges)
-                {
-                    var foundItem = _items.Find(x => x == item);
-                    foundItem!.ActiveCharges++;
-                    foundItem!.Time = ImGui.GetTime();
 
+            var currentTime = ImGui.GetTime();
+            foreach (var item in _items.ToList())
+            {
+                if (currentTime - item.Time <= item.Cooldown / 10)
+                    continue;
+
+                if (item.MaxCharges > 0 && item.ActiveCharges < item.MaxCharges)
+                {
+                    item.ActiveCharges++;
+                    item.Time = currentTime;
                     return;
                 }
+
                 _items.Remove(item);
             }
         }
@@ -320,14 +333,14 @@ namespace ZDs.Helpers
         private void HandleSpecialChargedActions(uint[] actionIds)
         {
             ActionsHelper actionHelper = new ActionsHelper();
-            
+
             foreach (var actionId in actionIds)
             {
                 var timelineItem = _items.FirstOrDefault(item => item.ActionID == actionId);
                 if (timelineItem != null)
                 {
                     actionHelper.GetAdjustedRecastInfo(actionId, out ActionsHelper.RecastInfo recastInfo);
-            
+
                     int stacks = recastInfo.RecastTime == 0f
                         ? recastInfo.MaxCharges
                         : (int)(recastInfo.MaxCharges * (recastInfo.RecastTimeElapsed / recastInfo.RecastTime));
@@ -339,7 +352,7 @@ namespace ZDs.Helpers
                     float cooldown = (chargeTime != 0
                         ? Math.Abs(recastInfo.RecastTime - recastInfo.RecastTimeElapsed) % chargeTime
                         : 0);
-                        
+
                     float cooldownLeft = Math.Abs(chargeTime - cooldown);
 
                     timelineItem.ActiveCharges = stacks;
@@ -357,7 +370,7 @@ namespace ZDs.Helpers
 
             ActionsHelper actionHelper = new ActionsHelper();
             actionHelper.GetAdjustedRecastInfo(actionId, out ActionsHelper.RecastInfo recastInfo);
-            
+
             int stacks = recastInfo.RecastTime == 0f
                 ? recastInfo.MaxCharges
                 : (int)(recastInfo.MaxCharges * (recastInfo.RecastTimeElapsed / recastInfo.RecastTime));
@@ -376,7 +389,7 @@ namespace ZDs.Helpers
             }
 
             // only cache the last kMaxItemCount items
-            if (_items.Count >= kMaxItemCount)
+            if (_items.Count >= MaxItemCount)
             {
                 _items.RemoveAt(0);
             }
@@ -384,7 +397,7 @@ namespace ZDs.Helpers
             double now = ImGui.GetTime();
             float gcdDuration = 0;
             float castTime = 0;
-            
+
             if (actionId is 7410 or 36978)
             {
                 // Handle Gauss Round / Ricochet and their upgraded counterparts
@@ -405,14 +418,14 @@ namespace ZDs.Helpers
             {
                 return;
             }
-            
+
             // handle weird cases
             if (_specialCasesMap.TryGetValue(actionId, out uint replacedId))
             {
                 type = TimelineItemType.Action;
                 actionId = replacedId;
             }
-            
+
             // Ninja's Hide restores Mudra Charges
             if (actionId == 2245)
             {
@@ -429,10 +442,10 @@ namespace ZDs.Helpers
                 _items.Find(x => x.ActionID == actionId)!.ActiveCharges--;
                 return;
             }
-            
+
             // handle changed icons
             int iconId = _hardcodedIconIds.TryGetValue(actionId, out uint hardcodedIconId) ? (int)hardcodedIconId : action.Icon;
-            
+
             // calculate gcd and cast time
             if (type == TimelineItemType.CastStart)
             {
@@ -465,7 +478,7 @@ namespace ZDs.Helpers
             _items.Add(item);
             SortTimeline();
         }
-        
+
         private void LoadPreview()
         {
             foreach (var (actionId, type) in _previewScript)
@@ -506,7 +519,7 @@ namespace ZDs.Helpers
 
             return TimelineItemType.Action;
         }
-        
+
         private unsafe void OnActionUsed(uint actorId, Character* casterPtr, Vector3* targetPos, ActionEffectHandler.Header* header, ActionEffectHandler.TargetEffects* effects, GameObjectId* targetEntityIds)
         {
             _onActionUsedHook?.Original(actorId, casterPtr, targetPos, header, effects, targetEntityIds);
@@ -524,9 +537,9 @@ namespace ZDs.Helpers
         private void OnActorControl(uint entityId, uint type, uint buffID, uint direct, uint actionId, uint sourceId, uint arg4, uint arg5, ulong targetId, byte a10)
         {
             _onActorControlHook?.Original(entityId, type, buffID, direct, actionId, sourceId, arg4, arg5, targetId, a10);
-            
+
             // Works for most wipes (it's the fadeout).
-            if (direct == 0x4000000F)
+            if (direct == FadeoutDirectValue)
             {
                 ResetCooldowns();
             }
@@ -547,7 +560,7 @@ namespace ZDs.Helpers
             if (player == null || sourceId != player.GameObjectId) { return; }
 
             int value = Marshal.ReadInt16(ptr);
-            uint actionId = value < 0 ? (uint)(value + 65536) : (uint)value;
+            uint actionId = value < 0 ? (uint)(value + ActionIdOffset) : (uint)value;
             AddItem(actionId, TimelineItemType.CastStart);
         }
     }

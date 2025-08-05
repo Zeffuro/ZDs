@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using ZDs.Helpers;
 using Newtonsoft.Json;
 
@@ -11,9 +11,9 @@ namespace ZDs.Config
     {
         [JsonIgnore]
         public bool Active { get; set; }
-        
+
         public string Name => "Cooldown";
-        
+
         public int TimelineIconSize = 40;
         public bool DrawIconBorder = true;
         public Vector4 BorderColor = new Vector4(0f, 0f, 0f, 1f);
@@ -23,17 +23,17 @@ namespace ZDs.Config
         public bool TimelineThresholdEnabled = true;
         public int TimelineThresholdTime = 5;
         public int TimelineThresholdIconSize = 50;
-        
+
         public string CooldownThresholdFontKey = FontsManager.DefaultBigFontKey;
         public int CooldownThresholdFontId = 0;
-        
+
         public bool CooldownIconOffsetEnabled = false;
         public bool CooldownIconOffsetInverted = false;
         public int CooldownIconOffset = 5;
-        
+
         public ConfigColor CooldownTextThresholdColor = new ConfigColor(1f, 0f, 0f, 1f);
         public ConfigColor CooldownTextOutlineThresholdColor = new ConfigColor(0f, 0f, 0f, 1f);
-        
+
         public string CooldownFontKey = FontsManager.DefaultMediumFontKey;
         public int CooldownFontId = 0;
 
@@ -55,20 +55,20 @@ namespace ZDs.Config
                 ImGui.DragInt("Icon Size", ref TimelineIconSize);
 
                 ImGui.NewLine();
-                
+
                 DrawHelper.DrawFontSelector("Font##Name", ref CooldownFontKey, ref CooldownFontId);
-            
+
                 DrawHelper.DrawColorSelector("Cooldown Text Color", ref CooldownTextColor);
                 DrawHelper.DrawColorSelector("Cooldown Text Outline Color", ref CooldownTextOutlineColor);
-            
+
                 ImGui.NewLine();
-            
+
                 ImGui.Checkbox("Draw Cooldown Swipe", ref DrawIconCooldown);
-                
+
                 ImGui.NewLine();
                 ImGui.Checkbox("Offset Cooldown Icons", ref CooldownIconOffsetEnabled);
                 DrawHelper.SetTooltip("When enabled, each cooldown icon will be slightly offset to prevent overlap.");
-                
+
                 if (CooldownIconOffsetEnabled)
                 {
                     DrawHelper.DrawNestIndicator(1);
@@ -78,12 +78,12 @@ namespace ZDs.Config
                     ImGui.Checkbox("Invert Offset Direction", ref CooldownIconOffsetInverted);
                     DrawHelper.SetTooltip("If enabled, the icon offset starts at the start of the timeline instead of the end. Default behavior is offset starting at the end.");
                 }
-            
+
                 ImGui.NewLine();
 
                 ImGui.Checkbox("Duration in minutes", ref ShowCooldownAsMinutes);
-            
-                ImGui.Combo("Rounding Mode", ref RoundingMode, new[] {"Truncate", "Floor", "Ceil", "Round"}, 4, 4);
+
+                ImGui.Combo("Rounding Mode", ref RoundingMode, ["Truncate", "Floor", "Ceil", "Round"], 4);
                 DrawHelper.SetTooltip("Controls how cooldown timers are rounded for display. For example, 'Truncate' removes decimals, while 'Round' rounds to the nearest whole number.");
 
                 ImGui.NewLine();

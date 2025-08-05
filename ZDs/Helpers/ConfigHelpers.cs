@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Text;
 using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Plugin.Services;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using ZDs.Config;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;

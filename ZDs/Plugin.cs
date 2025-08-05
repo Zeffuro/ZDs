@@ -13,7 +13,7 @@ using System.IO;
 using System.Numerics;
 using System.Reflection;
 using Dalamud.Plugin.Services;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using ZDs.Config;
 using ZDs.Helpers;
 using ZDs.Windows;

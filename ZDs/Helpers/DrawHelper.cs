@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.ImGuiNotification;
@@ -49,7 +49,7 @@ namespace ZDs.Helpers
             if (texture == null) return;
 
             uint color = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 1, 1, alpha));
-            drawList.AddImage(texture.ImGuiHandle, position, position + size, Vector2.Zero, Vector2.One, color);
+            drawList.AddImage(texture.Handle, position, position + size, Vector2.Zero, Vector2.One, color);
         }
         
         public static void DrawIcon(uint iconId, Vector2 position, Vector2 size, bool drawBorder, float alpha, ImDrawListPtr drawList)
@@ -58,7 +58,7 @@ namespace ZDs.Helpers
             if (texture == null) { return; }
 
             uint color = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 1, 1, alpha));
-            drawList.AddImage(texture.ImGuiHandle, position, position + size, Vector2.Zero, Vector2.One, color);
+            drawList.AddImage(texture.Handle, position, position + size, Vector2.Zero, Vector2.One, color);
 
             if (drawBorder)
             {
@@ -85,7 +85,7 @@ namespace ZDs.Helpers
             uint color = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 1, 1, alpha));
             
             ImGui.PushClipRect(Vector2.NegativeInfinity, Vector2.One * float.MaxValue, false);
-            drawList.AddImage(texture.ImGuiHandle, position, position + size, Vector2.Zero, Vector2.One, color);
+            drawList.AddImage(texture.Handle, position, position + size, Vector2.Zero, Vector2.One, color);
             
             if (drawBorder)
             {
@@ -103,7 +103,7 @@ namespace ZDs.Helpers
             (Vector2 uv0, Vector2 uv1) = GetTexCoordinates(texture, size, cropIcon);
 
             ImGui.SetCursorPos(position);
-            ImGui.Image(texture.ImGuiHandle, size, uv0, uv1);
+            ImGui.Image(texture.Handle, size, uv0, uv1);
 
             if (drawBorder)
             {
