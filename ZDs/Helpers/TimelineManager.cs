@@ -178,8 +178,8 @@ namespace ZDs.Helpers
         private delegate void OnActorControlDelegate(uint entityId, uint id, uint unk1, uint type, uint unk2, uint unk3, uint unk4, uint unk5, UInt64 targetId, byte unk6);
         private Hook<OnActorControlDelegate>? _onActorControlHook;
 
-        private delegate void OnCastDelegate(uint sourceId, IntPtr sourceCharacter);
-        private Hook<OnCastDelegate>? _onCastHook;
+        private delegate void OnActorCastDelegate(uint sourceId, IntPtr sourceCharacter);
+        private Hook<OnActorCastDelegate>? _onActorCastHook;
 
 
 
@@ -216,11 +216,11 @@ namespace ZDs.Helpers
                 );
                 _onActorControlHook?.Enable();
 
-                _onCastHook = Plugin.GameInteropProvider.HookFromSignature<OnCastDelegate>(
-                    "40 56 41 56 48 81 EC ?? ?? ?? ?? 48 8B F2",
+                _onActorCastHook = Plugin.GameInteropProvider.HookFromSignature<OnActorCastDelegate>(
+                    "40 53 57 48 81 EC ?? ?? ?? ?? 48 8B FA 8B D1",
                     OnCast
                 );
-                _onCastHook?.Enable();
+                _onActorCastHook?.Enable();
             }
             catch (Exception e)
             {
@@ -263,9 +263,9 @@ namespace ZDs.Helpers
             _onActorControlHook?.Dispose();
             _onActorControlHook = null;
 
-            _onCastHook?.Disable();
-            _onCastHook?.Dispose();
-            _onCastHook = null;
+            _onActorCastHook?.Disable();
+            _onActorCastHook?.Dispose();
+            _onActorCastHook = null;
         }
 
 
@@ -554,7 +554,7 @@ namespace ZDs.Helpers
 
         private void OnCast(uint sourceId, IntPtr ptr)
         {
-            _onCastHook?.Original(sourceId, ptr);
+            _onActorCastHook?.Original(sourceId, ptr);
 
             IPlayerCharacter? player = Plugin.ClientState.LocalPlayer;
             if (player == null || sourceId != player.GameObjectId) { return; }
