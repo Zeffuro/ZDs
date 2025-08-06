@@ -1,3 +1,6 @@
+# 1.1.0.4
+- Update to API13
+
 # 1.1.0.3
 - Add a preview mode
 
