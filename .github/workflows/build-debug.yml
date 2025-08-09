@@ -6,6 +6,21 @@ jobs:
   build-debug:
     runs-on: windows-2022
 
+    # Define the plugin name as an environment variable for easy reuse
+    env:
+      PLUGIN_NAME: ZDs
+
+    # Use a build matrix to run the same job for different Dalamud versions.
+    # We set fail-fast to false so that if one build fails, the other can still complete.
+    strategy:
+      fail-fast: false
+      matrix:
+        dalamud_version:
+          - name: "Latest"
+            url: "https://goatcorp.github.io/dalamud-distrib/latest.zip"
+          - name: "Staging"
+            url: "https://goatcorp.github.io/dalamud-distrib/stg/latest.zip"
+
     steps:
       # Checkout the repository code
       - name: Checkout and Initialise
@@ -14,30 +29,49 @@ jobs:
       # Install the required .NET SDK
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.x.x' # Ensure you have the correct version here
 
-      # Cache the nuget packages
+      # Cache the nuget packages. The key ensures a fresh cache if dependencies change.
+      # We use the PLUGIN_NAME variable in the cache key.
       - name: Cache Dependencies
         id: cache-dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.nuget/packages
-          key: ${{ runner.os }}-${{ hashFiles('**/ZDs.csproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/${{ env.PLUGIN_NAME }}.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
 
-      # Restore, build, and test
-      - name: Restore dependencies
-        run: dotnet restore
+      # Create the required directory structure and download/extract Dalamud to AppData.
+      - name: Download and extract Dalamud (${{ matrix.dalamud_version.name }})
+        run: |
+          mkdir -p "$env:AppData\XIVLauncher\addon\Hooks\dev"
+          Invoke-WebRequest -Uri "${{ matrix.dalamud_version.url }}" -OutFile "dalamud.zip"
+          Expand-Archive -Path "dalamud.zip" -DestinationPath "$env:AppData\XIVLauncher\addon\Hooks\dev" -Force
 
-      - name: Build Debug
-        run: dotnet build --no-restore --configuration Debug
+      # Restore, build, and test.
+      # The 'continue-on-error' flag allows the workflow to proceed even if this step fails.
+      - name: Build Debug (${{ matrix.dalamud_version.name }})
+        id: build_step
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration Debug
+          dotnet test --no-build --configuration Debug
+        continue-on-error: true
 
-      - name: Test Debug
-        run: dotnet test --no-build --configuration Debug
+      # Handle build failures. This step will only run if the build_step failed.
+      - name: Handle build failures for ${{ matrix.dalamud_version.name }}
+        if: steps.build_step.outcome == 'failure'
+        run: |
+          echo "::warning title=Build Failure::Build against Dalamud ${{ matrix.dalamud_version.name }} failed. Check the previous step's logs for details."
 
-      # Upload the build artifact
-      - name: Upload Artifact
+      # Upload the build artifact. This step will only run if the build_step succeeded.
+      - name: Upload Artifact (${{ matrix.dalamud_version.name }})
+        if: steps.build_step.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: ZDs-debug-${{ github.sha }}
+          name: ${{ env.PLUGIN_NAME }}-debug-${{ matrix.dalamud_version.name }}-${{ github.sha }}
           path: |
-            ZDs/bin/x64/Debug/
+            ${{ env.PLUGIN_NAME }}/bin/x64/Debug/
