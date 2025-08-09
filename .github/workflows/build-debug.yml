@@ -42,7 +42,7 @@ jobs:
           Invoke-WebRequest -Uri "${{ env.DALAMUD_VERSION_URL }}" -OutFile "dalamud.zip"
           Expand-Archive -Path "dalamud.zip" -DestinationPath "$env:AppData\XIVLauncher\addon\Hooks\dev" -Force
 
-      # Restore, build, and test. If this step fails, the job fails.
+      # Restore, build, and test.
       - name: Build Debug (${{ env.DALAMUD_VERSION_NAME }})
         id: build_step
         run: |
@@ -50,7 +50,13 @@ jobs:
           dotnet build --no-restore --configuration Debug
           dotnet test --no-build --configuration Debug
 
-      # Upload the build artifact.
+      # This step will explicitly fail the job if the build step failed.
+      # This ensures the job is marked with a red 'X' in the UI.
+      - name: Fail job if build failed
+        if: steps.build_step.outcome == 'failure'
+        run: exit 1
+
+      # Upload the build artifact. This step will only run if the build_step succeeded.
       - name: Upload Artifact (${{ env.DALAMUD_VERSION_NAME }})
         if: steps.build_step.outcome == 'success'
         uses: actions/upload-artifact@v4
@@ -105,6 +111,11 @@ jobs:
           dotnet restore
           dotnet build --no-restore --configuration Debug
           dotnet test --no-build --configuration Debug
+
+      # This step will explicitly fail the job if the build step failed.
+      - name: Fail job if build failed
+        if: steps.build_step.outcome == 'failure'
+        run: exit 1
 
       # Upload the build artifact.
       - name: Upload Artifact (${{ env.DALAMUD_VERSION_NAME }})
