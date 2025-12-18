@@ -175,7 +175,7 @@ namespace ZDs.Helpers
 
         private Hook<ActionEffectHandler.Delegates.Receive>? _onActionUsedHook;
 
-        private delegate void OnActorControlDelegate(uint category, uint eventId, uint param1, uint param2, uint param3, uint param4, uint param5, uint param6, uint param7, uint param8, ulong targetId, byte param9);
+        private delegate void OnActorControlDelegate(uint entityId, uint type, uint buffID, uint direct, uint actionId, uint sourceId, uint arg4, uint arg5, uint arg6, uint arg7, ulong targetId, byte a10);
         private Hook<OnActorControlDelegate>? _onActorControlHook;
 
         private delegate void OnActorCastDelegate(uint sourceId, IntPtr sourceCharacter);
@@ -534,22 +534,22 @@ namespace ZDs.Helpers
             AddItem (actionId, type.Value);
         }
 
-        private void OnActorControl(uint category, uint eventId, uint param1, uint param2, uint param3, uint param4, uint param5, uint param6, uint param7, uint param8, ulong targetId, byte param9)
+        private void OnActorControl(uint entityId, uint type, uint buffID, uint direct, uint actionId, uint sourceId, uint arg4, uint arg5, uint arg6, uint arg7, ulong targetId, byte a10)
         {
-            _onActorControlHook?.Original(category, eventId, param1, param2, param3, param4, param5, param6, param7, param8, targetId, param9);
+            _onActorControlHook?.Original(entityId, type, buffID, direct, actionId, sourceId, arg4, arg5, arg6, arg7, targetId, a10);
 
             // Works for most wipes (it's the fadeout).
-            if (param2 == FadeoutDirectValue)
+            if (direct == FadeoutDirectValue)
             {
                 ResetCooldowns();
             }
 
-            if (category != 15) { return; }
+            if (type != 15) { return; }
 
             IPlayerCharacter? player = Plugin.ObjectTable.LocalPlayer;
-            if (player == null || category != player.GameObjectId) { return; }
+            if (player == null || entityId != player.GameObjectId) { return; }
 
-            AddItem(param3, TimelineItemType.CastCancel);
+            AddItem(actionId, TimelineItemType.CastCancel);
         }
 
         private void OnCast(uint sourceId, IntPtr ptr)
