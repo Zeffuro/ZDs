@@ -295,7 +295,7 @@ namespace ZDs.Helpers
 
         private void CheckStatuses()
         {
-            IPlayerCharacter? player = Plugin.ClientState.LocalPlayer;
+            IPlayerCharacter? player = Plugin.ObjectTable.LocalPlayer;
 
             if (player == null)
                 return;
@@ -524,12 +524,12 @@ namespace ZDs.Helpers
         {
             _onActionUsedHook?.Original(actorId, casterPtr, targetPos, header, effects, targetEntityIds);
 
-            IPlayerCharacter ? player = Plugin.ClientState.LocalPlayer;
+            IPlayerCharacter ? player = Plugin.ObjectTable.LocalPlayer;
             if (player == null || actorId != player.GameObjectId) { return; }
 
             uint actionId = header->ActionId;
             TimelineItemType? type = TypeForActionID(actionId);
-            if (header->ActionType != ActionType.Action || !type.HasValue) { return; }
+            if ((ActionType)header->ActionType != ActionType.Action || !type.HasValue) { return; }
 
             AddItem (actionId, type.Value);
         }
@@ -546,7 +546,7 @@ namespace ZDs.Helpers
 
             if (type != 15) { return; }
 
-            IPlayerCharacter? player = Plugin.ClientState.LocalPlayer;
+            IPlayerCharacter? player = Plugin.ObjectTable.LocalPlayer;
             if (player == null || entityId != player.GameObjectId) { return; }
 
             AddItem(actionId, TimelineItemType.CastCancel);
@@ -556,7 +556,7 @@ namespace ZDs.Helpers
         {
             _onActorCastHook?.Original(sourceId, ptr);
 
-            IPlayerCharacter? player = Plugin.ClientState.LocalPlayer;
+            IPlayerCharacter? player = Plugin.ObjectTable.LocalPlayer;
             if (player == null || sourceId != player.GameObjectId) { return; }
 
             int value = Marshal.ReadInt16(ptr);
