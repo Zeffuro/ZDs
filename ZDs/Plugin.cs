@@ -29,6 +29,7 @@ namespace ZDs
         public static IDataManager DataManager { get; private set; } = null!;
         public static IFramework Framework { get; private set; } = null!;
         public static IGameGui GameGui { get; private set; } = null!;
+        public static IObjectTable ObjectTable { get; private set; } = null!;
         public static ISigScanner SigScanner { get; private set; } = null!;
         public static IUiBuilder UiBuilder { get; private set; } = null!;
         public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
@@ -60,9 +61,9 @@ namespace ZDs
             IDataManager dataManager,
             IFramework framework,
             IGameGui gameGui,
+            IObjectTable objectTable,
             ISigScanner sigScanner,
             IGameInteropProvider gameInteropProvider,
-            
             IKeyState keyState,
             IPluginLog logger,
             ITextureProvider textureProvider,
@@ -76,6 +77,7 @@ namespace ZDs
             DataManager = dataManager;
             Framework = framework;
             GameGui = gameGui;
+            ObjectTable = objectTable;
             SigScanner = sigScanner;
             GameInteropProvider = gameInteropProvider;
             UiBuilder = PluginInterface.UiBuilder;
@@ -110,16 +112,16 @@ namespace ZDs
             );
 
             TimelineManager.Initialize();
-            
+
             Singletons.Register(new ClipRectsHelper());
-            
+
             // Load changelog
             Changelog = LoadChangelog();
-            
+
             // Load config
             FontsManager.CopyPluginFontsToUserPath();
             Config = ConfigHelpers.LoadConfig(ConfigFilePath);
-            
+
             // Disable preview
             Config.GeneralConfig.Preview = false;
 
@@ -159,10 +161,10 @@ namespace ZDs
 
         private void Draw()
         {
-            if (Config == null || ClientState.LocalPlayer == null) return;
+            if (Config == null || ObjectTable.LocalPlayer == null) return;
 
             UpdateTimeline();
-            
+
             Singletons.Get<ClipRectsHelper>().Update();
 
             _windowSystem?.Draw();
@@ -181,7 +183,7 @@ namespace ZDs
             {
                 return;
             }
-                
+
             if (show)
             {
                 if (Config.GeneralConfig.ShowTimelineOnlyInCombat && !Condition[ConditionFlag.InCombat])
@@ -195,11 +197,11 @@ namespace ZDs
                 }
             }
 
-            _timelineWindow.IsOpen = show;
+            if(_timelineWindow != null ) _timelineWindow.IsOpen = show;
         }
 
         private void OpenConfigUi() => ToggleSettingsWindow();
-        
+
         private static string LoadChangelog()
         {
             if (string.IsNullOrEmpty(AssemblyLocation))
