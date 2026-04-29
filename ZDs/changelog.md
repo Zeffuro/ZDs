@@ -1,3 +1,6 @@
+# 1.1.0.6
+- Update to API15
+
 # 1.1.0.5
 - Update to API14
 
