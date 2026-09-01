@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using Dalamud.Plugin.Services;
+using ZDs.Helpers;
 
 namespace ZDs
 {
@@ -31,7 +33,7 @@ namespace ZDs
             }
             catch (Exception e)
             {
-                Plugin.Logger.Error("Error reading settings file: " + e.Message);
+                IPluginLog.Get().Error(e, "Error reading settings file.");
             }
 
             if (settings == null)
@@ -61,7 +63,7 @@ namespace ZDs
             }
             catch (Exception e)
             {
-                Plugin.Logger.Error("Error saving settings file: " + e.Message);
+                IPluginLog.Get().Error(e, "Error saving settings file.");
             }
         }
         #endregion

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Bindings.ImGui;
 using ZDs.Config;
 using ZDs.Helpers;
@@ -11,8 +12,6 @@ namespace ZDs.Windows
 {
     public class ConfigWindow : Window
     {
-        private const float NavBarHeight = 40;
-
         private bool _back = false;
         private bool _home = false;
         private bool _firstOpen = true;
@@ -48,11 +47,23 @@ namespace ZDs.Windows
             this.IsOpen = true;
         }
 
+        public void ReplaceRootConfig(IConfigurable configItem)
+        {
+            if (_configStack.Count == 0)
+            {
+                return;
+            }
+
+            _configStack.Clear();
+            _configStack.Push(configItem);
+            _name = configItem.Name;
+        }
+
         public void ToggleWindow()
         {
             if (IsOpen)
             {
-                _configStack.Clear();
+                CloseConfig();
             }
             else
             {
@@ -60,6 +71,12 @@ namespace ZDs.Windows
                 _firstOpen = true;
             }
             IsOpen = !IsOpen;
+        }
+
+        public void CloseForReset()
+        {
+            _configStack.Clear();
+            IsOpen = false;
         }
 
         public override void PreDraw()
@@ -87,32 +104,26 @@ namespace ZDs.Windows
         {
             if (_configStack.Count == 0)
             {
+                Plugin.Config.GeneralConfig.TimelineLocked = true;
+                ConfigHelpers.SaveConfig();
                 this.IsOpen = false;
                 return;
             }
 
             IConfigurable configItem = _configStack.Peek();
             Vector2 spacing = ImGui.GetStyle().ItemSpacing;
-            Vector2 size = _windowSize - spacing * 2;
-
-            size -= new Vector2(0, NavBarHeight + spacing.Y);
-            
-
-            IConfigPage? openPage = null;
-            if (ImGui.BeginTabBar($"##{this.WindowName}"))
+            using var tabBar = ImRaii.TabBar($"##{this.WindowName}");
+            if (tabBar)
             {
                 foreach (IConfigPage page in configItem.GetConfigPages())
                 {
-                    page.Active = ImGui.BeginTabItem($"{page.Name}##{this.WindowName}");
+                    using var tabItem = ImRaii.TabItem($"{page.Name}##{this.WindowName}");
+                    page.Active = tabItem;
                     if (page.Active)
                     {
-                        openPage = page;
-                        page.DrawConfig(size.AddY(-ImGui.GetCursorPosY()), spacing.X, spacing.Y);
-                        ImGui.EndTabItem();
+                        page.DrawConfig(ImGui.GetContentRegionAvail(), spacing.X, spacing.Y);
                     }
                 }
-
-                ImGui.EndTabBar();
             }
 
             _windowPosition = ImGui.GetWindowPos();
@@ -146,11 +157,15 @@ namespace ZDs.Windows
 
         public override void OnClose()
         {
+            CloseConfig();
+        }
+
+        private void CloseConfig()
+        {
             Plugin.Config.GeneralConfig.Preview = false;
+            Plugin.Config.GeneralConfig.TimelineLocked = true;
             ConfigHelpers.SaveConfig();
             _configStack.Clear();
-
-            ZDsConfig config = Singletons.Get<ZDsConfig>();
         }
     }
 }

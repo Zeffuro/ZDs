@@ -23,26 +23,37 @@ namespace ZDs.Helpers
             SerializationBinder = new ZDsSerializationBinder()
         };
         
-        public static void ResetConfig()
+        public static bool ResetConfig()
         {
-            Plugin.Config = new ZDsConfig();
-            SaveConfig();
+            try
+            {
+                if (Directory.Exists(Plugin.ConfigFileDir))
+                {
+                    Directory.Delete(Plugin.ConfigFileDir, true);
+                }
+
+                Directory.CreateDirectory(Plugin.ConfigFileDir);
+                FontsManager.CopyPluginFontsToUserPath();
+                ZDsConfig freshConfig = ConfigMigration.CreateNewDefault();
+                freshConfig.GeneralConfig.TimelineLocked = false;
+                Plugin.ApplyConfig(freshConfig, false);
+                ProfileManager.Initialize(true);
+                SaveConfig();
+                Plugin.ShowSetupAfterReset();
+                DrawHelper.DrawNotification("ZDs settings were reset.", NotificationType.Success);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                IPluginLog.Get().Error(ex, "Failed to reset ZDs settings.");
+                DrawHelper.DrawNotification("Could not reset ZDs settings.", NotificationType.Error);
+                return false;
+            }
         }
 
         public static void ExportConfig()
         {
             ConfigHelpers.ExportToClipboard<ZDsConfig>(Plugin.Config);
-        }
-
-        public static void ImportConfig()
-        {
-            string importString = ImGui.GetClipboardText();
-            ZDsConfig? config = ConfigHelpers.GetFromImportString<ZDsConfig>(importString);
-
-            if (config is not null)
-            {
-                Plugin.Config = config;
-            }
         }
 
         public static void ExportToClipboard<T>(T toExport)
@@ -80,7 +91,7 @@ namespace ZDs.Helpers
             }
             catch (Exception ex)
             {
-                Plugin.Logger.Error(ex.ToString());
+                IPluginLog.Get().Error(ex, "Failed to export configuration.");
             }
 
             return null;
@@ -111,15 +122,16 @@ namespace ZDs.Helpers
             }
             catch (Exception ex)
             {
-                Plugin.Logger.Error(ex.ToString());
+                IPluginLog.Get().Error(ex, "Failed to import configuration.");
             }
 
             return default;
         }
 
-        public static ZDsConfig LoadConfig(string path)
+        public static ConfigLoadResult LoadConfig(string path)
         {
             ZDsConfig? config = null;
+            bool fileExisted = File.Exists(path);
 
             try
             {
@@ -131,7 +143,7 @@ namespace ZDs.Helpers
             }
             catch (Exception ex)
             {
-                Plugin.Logger.Error(ex.ToString());
+                IPluginLog.Get().Error(ex, "Failed to load configuration.");
 
                 string backupPath = $"{path}.bak";
                 if (File.Exists(path))
@@ -139,16 +151,29 @@ namespace ZDs.Helpers
                     try
                     {
                         File.Copy(path, backupPath);
-                        Plugin.Logger.Information($"Backed up ZDs config to '{backupPath}'.");
+                        IPluginLog.Get().Information("Backed up ZDs config to '{BackupPath}'.", backupPath);
                     }
                     catch
                     {
-                        Plugin.Logger.Warning($"Unable to back up ZDs config.");
+                        IPluginLog.Get().Warning("Unable to back up ZDs config.");
                     }
                 }
             }
 
-            return config ?? new ZDsConfig();
+            if (config is null)
+            {
+                if (!fileExisted)
+                {
+                    return new ConfigLoadResult(ConfigMigration.CreateNewDefault(), true);
+                }
+
+                ZDsConfig recovered = new();
+                ConfigMigration.Migrate(recovered);
+                return new ConfigLoadResult(recovered, false);
+            }
+
+            ConfigMigration.Migrate(config);
+            return new ConfigLoadResult(config, false);
         }
 
         public static void SaveConfig()
@@ -165,10 +190,12 @@ namespace ZDs.Helpers
             }
             catch (Exception ex)
             {
-                Plugin.Logger.Error(ex.ToString());
+                IPluginLog.Get().Error(ex, "Failed to save configuration.");
             }
         }
     }
+
+    public readonly record struct ConfigLoadResult(ZDsConfig Config, bool IsNewInstall);
 
     /// <summary>
     /// Because the game blocks the json serializer from loading assemblies at runtime, we define

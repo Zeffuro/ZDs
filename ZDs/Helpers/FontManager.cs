@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Dalamud.Interface;
+using Dalamud.Interface.GameFonts;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.Utility;
 using Dalamud.Plugin.Services;
@@ -10,49 +11,50 @@ using Dalamud.Bindings.ImGui;
 
 namespace ZDs.Helpers
 {
+    public enum FontSourceKind
+    {
+        CustomFile = 0,
+        Game = 1
+    }
+
     public struct FontData(
         string name,
         string path,
         int size,
         bool chinese,
-        bool korean)
+        bool korean,
+        FontSourceKind source = FontSourceKind.CustomFile,
+        string? gameFamily = null)
     {
         public string Name = name;
         public string Path = path;
         public int Size = size;
         public bool Chinese = chinese;
         public bool Korean = korean;
+        public FontSourceKind Source = source;
+        public string? GameFamily = gameFamily;
     }
 
-    public class FontScope : IDisposable
+    internal sealed class EmptyFontScope : IDisposable
     {
-        private readonly IFontHandle? _handle;
-
-        public FontScope(IFontHandle? handle = null)
-        {
-            _handle = handle;
-            _handle?.Push();
-        }
-
-        public void Dispose()
-        {
-            _handle?.Pop();
-            GC.SuppressFinalize(this);
-        }
+        public static readonly EmptyFontScope Instance = new();
+        public void Dispose() { }
     }
 
     // From LMeter https://github.com/lichie567/LMeter/blob/develop/LMeter/Helpers/FontsManager.cs
     public class FontsManager : IDisposable
     {
         private readonly Dictionary<string, IFontHandle> _imGuiFonts = [];
+        private readonly Dictionary<string, string> _handleFamilies = [];
+        private readonly Dictionary<string, FontData> _fontSources = [];
         private string[] _fontList;
         private readonly IUiBuilder _uiBuilder;
 
         public const string DalamudFontKey = "Dalamud Font";
-        public static readonly List<string> DefaultFontKeys = ["Expressway_24", "Expressway_20", "Expressway_16"];
-        public static string DefaultBigFontKey => DefaultFontKeys[0];
-        public static string DefaultMediumFontKey => DefaultFontKeys[1];
-        public static string DefaultSmallFontKey => DefaultFontKeys[2];
+        public const string DefaultFontFamily = "Expressway";
+        public const int DefaultBigFontSize = 24;
+        public const int DefaultMediumFontSize = 20;
+        public const int DefaultSmallFontSize = 16;
 
         public FontsManager(IUiBuilder uiBuilder, IEnumerable<FontData> fonts)
         {
@@ -63,71 +65,84 @@ namespace ZDs.Helpers
 
         private void BuildFonts(IEnumerable<FontData> fontData)
         {
-            string fontDir = GetUserFontPath();
-            if (string.IsNullOrEmpty(fontDir))
+            Dictionary<string, FontData> requestedSources = fontData
+                .Where(IsValidFontSource)
+                .GroupBy(GetFontFamilyKey, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+            foreach (string removedKey in _handleFamilies
+                         .Where(pair => !requestedSources.ContainsKey(pair.Value))
+                         .Select(pair => pair.Key)
+                         .ToArray())
             {
-                return;
+                _imGuiFonts[removedKey].Dispose();
+                _imGuiFonts.Remove(removedKey);
+                _handleFamilies.Remove(removedKey);
             }
 
-            this.DisposeFontHandles();
-
-            foreach (FontData font in fontData)
+            _fontSources.Clear();
+            foreach ((string key, FontData source) in requestedSources)
             {
-                string path = string.IsNullOrEmpty(font.Path) ? $"{fontDir}{font.Name}.ttf" : font.Path;
-                if (!File.Exists(path))
-                {
-                    continue;
-                }
+                _fontSources[key] = source;
+            }
 
-                try
-                {
-                    IFontHandle fontHandle = this._uiBuilder.FontAtlas.NewDelegateFontHandle
+            _fontList = [DalamudFontKey, .. _fontSources.Keys.Order(StringComparer.OrdinalIgnoreCase)];
+        }
+
+        private static bool IsValidFontSource(FontData font)
+            => font.Source != FontSourceKind.Game
+               || (!string.IsNullOrEmpty(font.GameFamily)
+                   && Enum.TryParse(font.GameFamily, out GameFontFamily family)
+                   && family != GameFontFamily.Undefined);
+
+        private IFontHandle? CreateFileFontHandle(FontData font, string fontDir, int size)
+        {
+            string path = string.IsNullOrEmpty(font.Path) ? $"{fontDir}{font.Name}.ttf" : font.Path;
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            return _uiBuilder.FontAtlas.NewDelegateFontHandle
+            (
+                e => e.OnPreBuild
+                (
+                    tk => tk.AddFontFromFile
                     (
-                        e => e.OnPreBuild
-                        (
-                            tk => tk.AddFontFromFile
-                            (
-                                path,
-                                new SafeFontConfig
-                                {
-                                    SizePx = font.Size,
-                                    GlyphRanges = this.GetCharacterRanges(font.Chinese, font.Korean),
-                                }
-                            )
-                        )
-                    );
+                        path,
+                        new SafeFontConfig
+                        {
+                            SizePx = size,
+                            GlyphRanges = GetCharacterRanges(font.Chinese, font.Korean),
+                        }
+                    )
+                )
+            );
+        }
 
-                    _imGuiFonts.Add(GetFontKey(font), fontHandle);
-                }
-                catch (Exception ex)
-                {
-                    Singletons.Get<IPluginLog>().Error($"Failed to load font from path [{path}]!");
-                    Singletons.Get<IPluginLog>().Error(ex.ToString());
-                }
+        private IFontHandle? CreateGameFontHandle(FontData font, int size)
+        {
+            if (string.IsNullOrEmpty(font.GameFamily)
+                || !Enum.TryParse(font.GameFamily, out GameFontFamily family)
+                || family == GameFontFamily.Undefined)
+            {
+                return null;
             }
 
-            _fontList = [DalamudFontKey, .. _imGuiFonts.Keys];
+            return _uiBuilder.FontAtlas.NewGameFontHandle(new GameFontStyle(family, size));
         }
 
         public static FontData[] GetDefaultFontData()
         {
-            FontData[] defaults = new FontData[DefaultFontKeys.Count];
-            for (int i = 0; i < DefaultFontKeys.Count; i++)
-            {
-                string[] splits = DefaultFontKeys[i].Split("_", StringSplitOptions.RemoveEmptyEntries);
-                if (splits.Length == 2 && int.TryParse(splits[1], out int size))
-                {
-                    defaults[i] = new(splits[0], $"{GetUserFontPath()}{splits[0]}.ttf", size, false, false);
-                }
-            }
-
-            return defaults;
+            return [new(DefaultFontFamily, $"{GetUserFontPath()}{DefaultFontFamily}.ttf", DefaultMediumFontSize, false, false)];
         }
 
         public void UpdateFonts(IEnumerable<FontData> fonts)
         {
             this.BuildFonts(fonts);
         }
+
+        public bool HasFont(string key) => _fontSources.ContainsKey(NormalizeFontFamily(key));
 
         private void DisposeFontHandles()
         {
@@ -137,6 +152,8 @@ namespace ZDs.Helpers
             }
 
             _imGuiFonts.Clear();
+            _handleFamilies.Clear();
+            _fontSources.Clear();
         }
 
         private unsafe ushort[]? GetCharacterRanges(bool chinese, bool korean)
@@ -184,17 +201,56 @@ namespace ZDs.Helpers
             return fontId < fontOptions.Length && fontOptions[fontId].Equals(fontKey);
         }
 
-        public static FontScope PushFont(string fontKey)
+        public static IDisposable PushFont(string fontFamily, int fontSize)
         {
-            if (!string.IsNullOrEmpty(fontKey))
+            FontsManager manager = Singletons.Get<FontsManager>();
+            if (string.IsNullOrWhiteSpace(fontFamily) || fontFamily == DalamudFontKey)
             {
-                if (Singletons.Get<FontsManager>()._imGuiFonts.TryGetValue(fontKey, out IFontHandle? fontHandle))
+                return EmptyFontScope.Instance;
+            }
+
+            if (TryParseFontReference(fontFamily, out string migratedFamily, out int migratedSize))
+            {
+                fontFamily = migratedFamily;
+                if (migratedSize > 0)
                 {
-                    return new FontScope(fontHandle);
+                    fontSize = migratedSize;
                 }
             }
 
-            return new FontScope();
+            fontSize = Math.Clamp(fontSize, 1, 200);
+            string handleKey = $"{fontFamily}_{fontSize}";
+            if (!manager._imGuiFonts.TryGetValue(handleKey, out IFontHandle? fontHandle))
+            {
+                if (!manager._fontSources.TryGetValue(fontFamily, out FontData source))
+                {
+                    return EmptyFontScope.Instance;
+                }
+
+                try
+                {
+                    fontHandle = source.Source switch
+                    {
+                        FontSourceKind.Game => manager.CreateGameFontHandle(source, fontSize),
+                        _ => manager.CreateFileFontHandle(source, GetUserFontPath(), fontSize)
+                    };
+
+                    if (fontHandle is null)
+                    {
+                        return EmptyFontScope.Instance;
+                    }
+
+                    manager._imGuiFonts[handleKey] = fontHandle;
+                    manager._handleFamilies[handleKey] = fontFamily;
+                }
+                catch (Exception ex)
+                {
+                    IPluginLog.Get().Error(ex, "Failed to load font {FontKey}.", handleKey);
+                    return EmptyFontScope.Instance;
+                }
+            }
+
+            return fontHandle.Push();
         }
 
         public static string[] GetFontList()
@@ -202,12 +258,63 @@ namespace ZDs.Helpers
             return Singletons.Get<FontsManager>()._fontList;
         }
 
-        public static string GetFontKey(FontData font)
+        public static string GetFontFamilyKey(FontData font)
         {
-            string key = $"{font.Name}_{font.Size}";
+            if (font.Source == FontSourceKind.Game)
+            {
+                return $"FFXIV_{font.GameFamily}";
+            }
+
+            string key = font.Name;
             key += font.Chinese ? "_cnjp" : string.Empty;
             key += font.Korean ? "_kr" : string.Empty;
             return key;
+        }
+
+        public static string GetFontKey(FontData font) => GetFontFamilyKey(font);
+
+        public static string NormalizeFontFamily(string fontReference)
+            => TryParseFontReference(fontReference, out string family, out _) ? family : fontReference;
+
+        public static bool TryParseFontReference(string? fontReference, out string family, out int size)
+        {
+            family = DalamudFontKey;
+            size = 0;
+            if (string.IsNullOrWhiteSpace(fontReference))
+            {
+                return false;
+            }
+
+            if (fontReference.Equals(DalamudFontKey, StringComparison.Ordinal))
+            {
+                family = DalamudFontKey;
+                return true;
+            }
+
+            string[] legacyGameParts = fontReference.Split(':', StringSplitOptions.RemoveEmptyEntries);
+            if (legacyGameParts.Length == 3
+                && legacyGameParts[0].Equals("ffxiv", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(legacyGameParts[2], out size))
+            {
+                family = $"FFXIV_{legacyGameParts[1]}";
+                return true;
+            }
+
+            string[] parts = fontReference.Split('_', StringSplitOptions.RemoveEmptyEntries);
+            for (int i = parts.Length - 1; i > 0; i--)
+            {
+                if (!int.TryParse(parts[i], out size))
+                {
+                    continue;
+                }
+
+                family = string.Join('_', parts.Take(i).Concat(parts.Skip(i + 1)));
+                return true;
+            }
+
+            family = fontReference;
+            size = 0;
+            return true;
         }
 
         public static void CopyPluginFontsToUserPath()
@@ -226,7 +333,7 @@ namespace ZDs.Helpers
             }
             catch (Exception ex)
             {
-                Singletons.Get<IPluginLog>().Warning($"Failed to create User Font Directory {ex}");
+                IPluginLog.Get().Warning(ex, "Failed to create user font directory.");
             }
 
             if (!Directory.Exists(userFontPath))
@@ -260,7 +367,7 @@ namespace ZDs.Helpers
                 }
                 catch (Exception ex)
                 {
-                    Singletons.Get<IPluginLog>().Warning($"Failed to copy font {fontFileNames} to User Font Directory: {ex}");
+                    IPluginLog.Get().Warning(ex, "Failed to copy font {FontPath} to user font directory.", fontFileNames);
                 }
             }
         }

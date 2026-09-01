@@ -1,8 +1,12 @@
 ﻿using System.Collections.Generic;
+using System;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
+using Dalamud.Interface.GameFonts;
+using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using Newtonsoft.Json;
 using ZDs.Helpers;
 
@@ -17,9 +21,12 @@ namespace ZDs.Config
 
         [JsonIgnore] private static readonly string? _fontPath = FontsManager.GetUserFontPath();
         [JsonIgnore] private int _selectedFont = 0;
-        [JsonIgnore] private int _selectedSize = 23;
+        [JsonIgnore] private int _selectedGameFont = 0;
         [JsonIgnore] private string[] _fontPaths = FontsManager.GetFontPaths(FontsManager.GetUserFontPath());
-        [JsonIgnore] private readonly string[] _sizes = Enumerable.Range(1, 40).Select(i => i.ToString()).ToArray();
+        [JsonIgnore] private readonly string[] _gameFontFamilies = Enum.GetValues<GameFontFamily>()
+            .Where(family => family != GameFontFamily.Undefined)
+            .Select(family => family.ToString())
+            .ToArray();
         [JsonIgnore] private bool _chinese = false;
         [JsonIgnore] private bool _korean = false;
 
@@ -45,14 +52,18 @@ namespace ZDs.Config
                 RefreshFontList();
             }
 
-            if (ImGui.BeginChild("##FontConfig", new Vector2(size.X, size.Y), border))
+            using var child = ImRaii.Child("##FontConfig", new Vector2(size.X, size.Y), border);
+            if (!child)
             {
+                return;
+            }
+
                 if (_fontPath is not null)
                 {
                     float cursorY = ImGui.GetCursorPosY();
                     ImGui.SetCursorPosY(cursorY + 2f);
                     ImGui.Text("Copy Font Folder Path to Clipboard: ");
-                    DrawHelper.SetTooltip("Place your custom font files (.ttf, .otf) in this folder. After adding new fonts, click the 'Reload Font List' button.");
+                    DrawHelper.SetTooltip("Put .ttf or .otf files here, then reload the list.");
                     ImGui.SameLine();
 
                     Vector2 buttonSize = new(40, 0);
@@ -64,18 +75,22 @@ namespace ZDs.Config
                     ImGui.SameLine();
                     DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Sync, () => RefreshFontList(), "Reload Font List", buttonSize);
 
-                    ImGui.Combo("Size", ref _selectedSize, _sizes, _sizes.Length);
-                    ImGui.SameLine();
-                    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + 3f);
-                    DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Plus, () => AddFont(_selectedFont, _selectedSize), "Add Font", buttonSize);
+                    DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Plus, () => AddFont(_selectedFont), "Add Font Family", buttonSize);
 
                     ImGui.Checkbox("Support Chinese/Japanese", ref _chinese);
                     ImGui.SameLine();
                     ImGui.Checkbox("Support Korean", ref _korean);
 
+                    ImGui.NewLine();
+                    ImGui.Text("Add FFXIV Game Font");
+                    ImGui.Combo("Family##GameFont", ref _selectedGameFont, _gameFontFamilies, _gameFontFamilies.Length);
+                    ImGui.SameLine();
+                    DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Plus, () => AddGameFont(_selectedGameFont), "Add Game Font Family", buttonSize);
+                    DrawHelper.SetTooltip("Add a font included with FFXIV.");
+
                     //DrawHelpers.DrawSpacing(1);
                     ImGui.Text("Font List");
-                    DrawHelper.SetTooltip("Custom fonts added here will be available for selection in other plugin settings.");
+                    DrawHelper.SetTooltip("Added fonts appear in other settings.");
 
                     ImGuiTableFlags tableFlags =
                         ImGuiTableFlags.RowBg |
@@ -85,10 +100,11 @@ namespace ZDs.Config
                         ImGuiTableFlags.ScrollY |
                         ImGuiTableFlags.NoSavedSettings;
 
-                    if (ImGui.BeginTable("##Font_Table", 5, tableFlags, new Vector2(size.X - padX * 2, size.Y - ImGui.GetCursorPosY() - padY * 2)))
+                    using var table = ImRaii.Table("##Font_Table", 5, tableFlags, new Vector2(size.X - padX * 2, size.Y - ImGui.GetCursorPosY() - padY * 2));
+                    if (table)
                     {
                         ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 0, 0);
-                        ImGui.TableSetupColumn("Size", ImGuiTableColumnFlags.WidthFixed, 40, 1);
+                        ImGui.TableSetupColumn("Source", ImGuiTableColumnFlags.WidthFixed, 70, 1);
                         ImGui.TableSetupColumn("CN/JP", ImGuiTableColumnFlags.WidthFixed, 40, 2);
                         ImGui.TableSetupColumn("KR", ImGuiTableColumnFlags.WidthFixed, 40, 3);
                         ImGui.TableSetupColumn("Actions", ImGuiTableColumnFlags.WidthFixed, 45, 4);
@@ -98,7 +114,7 @@ namespace ZDs.Config
 
                         for (int i = 0; i < this.Fonts.Keys.Count; i++)
                         {
-                            ImGui.PushID(i.ToString());
+                            using var id = ImRaii.PushId(i);
                             ImGui.TableNextRow(ImGuiTableRowFlags.None, 28);
 
                             string key = this.Fonts.Keys.ElementAt(i);
@@ -113,7 +129,7 @@ namespace ZDs.Config
                             if (ImGui.TableSetColumnIndex(1))
                             {
                                 ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 3f);
-                                ImGui.Text(font.Size.ToString());
+                                ImGui.Text(font.Source == FontSourceKind.Game ? "FFXIV" : "File");
                             }
 
                             if (ImGui.TableSetColumnIndex(2))
@@ -130,7 +146,7 @@ namespace ZDs.Config
 
                             if (ImGui.TableSetColumnIndex(4))
                             {
-                                if (!FontsManager.DefaultFontKeys.Contains(key))
+                                if (!key.Equals(FontsManager.DefaultFontFamily, StringComparison.Ordinal))
                                 {
                                     ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 1f);
                                     DrawHelper.DrawButton(string.Empty, FontAwesomeIcon.Trash, () => RemoveFont(key), "Remove Font", new Vector2(45, 0));
@@ -138,12 +154,8 @@ namespace ZDs.Config
                             }
                         }
 
-                        ImGui.EndTable();
                     }
                 }
-            }
-
-            ImGui.EndChild();
         }
 
         public void RefreshFontList()
@@ -151,14 +163,76 @@ namespace ZDs.Config
             _fontPaths = FontsManager.GetFontPaths(FontsManager.GetUserFontPath());
         }
 
-        private void AddFont(int fontIndex, int size)
+        public void NormalizeFonts()
         {
-            FontData newFont = new(FontsManager.GetFontName(_fontPath, _fontPaths[fontIndex]), _fontPaths[fontIndex], size + 1, _chinese, _korean);
+            Dictionary<string, FontData> normalized = [];
+            foreach (FontData font in Fonts.Values.Concat(FontsManager.GetDefaultFontData()))
+            {
+                string family = FontsManager.GetFontFamilyKey(font);
+                normalized.TryAdd(family, font);
+            }
+
+            Fonts = normalized;
+        }
+
+        private void AddFont(int fontIndex)
+        {
+            if (fontIndex < 0 || fontIndex >= _fontPaths.Length)
+            {
+                return;
+            }
+
+            FontData newFont = new(FontsManager.GetFontName(_fontPath, _fontPaths[fontIndex]), _fontPaths[fontIndex], FontsManager.DefaultMediumFontSize, _chinese, _korean);
             string key = FontsManager.GetFontKey(newFont);
 
             if (this.Fonts.TryAdd(key, newFont))
             {
-                Singletons.Get<FontsManager>().UpdateFonts(this.Fonts.Values);
+                FontsManager manager = Singletons.Get<FontsManager>();
+                manager.UpdateFonts(this.Fonts.Values);
+                if (!manager.HasFont(key))
+                {
+                    this.Fonts.Remove(key);
+                    DrawHelper.DrawNotification($"Could not load font '{key}'. Check the plugin log for details.", NotificationType.Error);
+                    return;
+                }
+
+                ConfigHelpers.SaveConfig();
+                DrawHelper.DrawNotification($"Added font '{key}'.");
+            }
+            else
+            {
+                DrawHelper.DrawNotification($"Font '{key}' is already in the list.", NotificationType.Warning);
+            }
+        }
+
+        private void AddGameFont(int familyIndex)
+        {
+            if (familyIndex < 0 || familyIndex >= _gameFontFamilies.Length)
+            {
+                return;
+            }
+
+            string family = _gameFontFamilies[familyIndex];
+            FontData newFont = new(family, string.Empty, FontsManager.DefaultMediumFontSize, false, false, FontSourceKind.Game, family);
+            string key = FontsManager.GetFontKey(newFont);
+
+            if (Fonts.TryAdd(key, newFont))
+            {
+                FontsManager manager = Singletons.Get<FontsManager>();
+                manager.UpdateFonts(Fonts.Values);
+                if (!manager.HasFont(key))
+                {
+                    Fonts.Remove(key);
+                    DrawHelper.DrawNotification($"Could not load FFXIV font '{key}'. Check the plugin log for details.", NotificationType.Error);
+                    return;
+                }
+
+                ConfigHelpers.SaveConfig();
+                DrawHelper.DrawNotification($"Added FFXIV font '{key}'.");
+            }
+            else
+            {
+                DrawHelper.DrawNotification($"Font '{key}' is already in the list.", NotificationType.Warning);
             }
         }
 
@@ -166,6 +240,7 @@ namespace ZDs.Config
         {
             this.Fonts.Remove(key);
             Singletons.Get<FontsManager>().UpdateFonts(this.Fonts.Values);
+            ConfigHelpers.SaveConfig();
         }
     }
 }

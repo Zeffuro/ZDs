@@ -1,42 +1,26 @@
-using Dalamud.Data;
-using Dalamud.Game;
-using Dalamud.Game.ClientState;
-using Dalamud.Game.ClientState.Conditions;
-using Dalamud.Game.ClientState.Keys;
 using Dalamud.Game.Command;
-using Dalamud.Game.Gui;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
+using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Plugin;
 using System;
 using System.IO;
 using System.Numerics;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using Dalamud.Plugin.Services;
-using Dalamud.Bindings.ImGui;
 using ZDs.Config;
 using ZDs.Helpers;
+using ZDs.Timeline;
 using ZDs.Windows;
 
 namespace ZDs
 {
-    public class Plugin : IDalamudPlugin
+    public sealed class Plugin : IAsyncDalamudPlugin
     {
-        public static IClientState ClientState { get; private set; } = null!;
-        public static ICommandManager CommandManager { get; private set; } = null!;
         public static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
-        public static ICondition Condition { get; private set; } = null!;
-        public static IDataManager DataManager { get; private set; } = null!;
-        public static IFramework Framework { get; private set; } = null!;
-        public static IGameGui GameGui { get; private set; } = null!;
-        public static IObjectTable ObjectTable { get; private set; } = null!;
-        public static ISigScanner SigScanner { get; private set; } = null!;
-        public static IUiBuilder UiBuilder { get; private set; } = null!;
-        public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
-        public static IKeyState KeyState { get; private set; } = null!;
-        public static IPluginLog Logger { get; private set; } = null!;
-        public static ITextureProvider TextureProvider { get; private set; } = null!;
-        public static INotificationManager NotificationManager { get; private set; } = null!;
 
         public static string AssemblyLocation { get; private set; } = "";
         public string Name => "ZDs";
@@ -49,42 +33,17 @@ namespace ZDs
 
         public static ZDsConfig Config { get; set; } = null!;
 
-        private static WindowSystem _windowSystem = null!;
-        private static ConfigWindow _configWindow = null!;
-        private static TimelineWindow _timelineWindow = null!;
+        private static WindowSystem? _windowSystem;
+        private static ConfigWindow? _configWindow;
+        private static TimelineWindow? _timelineWindow;
+        private static TimelineSetupWindow? _setupWindow;
+        private bool _loadStarted;
+        private bool _configLoaded;
+        private bool _commandRegistered;
 
-        public Plugin(
-            IClientState clientState,
-            ICommandManager commandManager,
-            IDalamudPluginInterface pluginInterface,
-            ICondition condition,
-            IDataManager dataManager,
-            IFramework framework,
-            IGameGui gameGui,
-            IObjectTable objectTable,
-            ISigScanner sigScanner,
-            IGameInteropProvider gameInteropProvider,
-            IKeyState keyState,
-            IPluginLog logger,
-            ITextureProvider textureProvider,
-            INotificationManager notificationManager
-        )
+        public Plugin(IDalamudPluginInterface pluginInterface)
         {
-            ClientState = clientState;
-            CommandManager = commandManager;
             PluginInterface = pluginInterface;
-            Condition = condition;
-            DataManager = dataManager;
-            Framework = framework;
-            GameGui = gameGui;
-            ObjectTable = objectTable;
-            SigScanner = sigScanner;
-            GameInteropProvider = gameInteropProvider;
-            UiBuilder = PluginInterface.UiBuilder;
-            KeyState = keyState;
-            Logger = logger;
-            TextureProvider = textureProvider;
-            NotificationManager = notificationManager;
 
             if (pluginInterface.AssemblyLocation.DirectoryName != null)
             {
@@ -98,20 +57,25 @@ namespace ZDs
             Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0.0";
             ConfigFileDir = pluginInterface.GetPluginConfigDirectory();
             ConfigFilePath = Path.Combine(pluginInterface.GetPluginConfigDirectory(), Plugin.ConfigFileName);
+        }
 
-            UiBuilder.Draw += Draw;
-            UiBuilder.OpenConfigUi += OpenConfigUi;
+        public Task LoadAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _loadStarted = true;
 
-            CommandManager.AddHandler(
+            PluginInterface.UiBuilder.Draw += Draw;
+            PluginInterface.UiBuilder.OpenConfigUi += OpenConfigUi;
+
+            ICommandManager.Get().AddHandler(
                 "/zd",
                 new CommandInfo(PluginCommand)
                 {
-                    HelpMessage = "Opens the ZDs configuration window.",
+                    HelpMessage = "Opens settings. Use '/zd profile <name>' to switch profiles or '/zd profile save <name>' to save one.",
                     ShowInHelp = true
                 }
             );
-
-            TimelineManager.Initialize();
+            _commandRegistered = true;
 
             Singletons.Register(new ClipRectsHelper());
 
@@ -120,32 +84,125 @@ namespace ZDs
 
             // Load config
             FontsManager.CopyPluginFontsToUserPath();
-            Config = ConfigHelpers.LoadConfig(ConfigFilePath);
+            ConfigLoadResult configLoad = ConfigHelpers.LoadConfig(ConfigFilePath);
+            Config = configLoad.Config;
+            _configLoaded = true;
 
             // Disable preview
             Config.GeneralConfig.Preview = false;
 
             // Refresh fonts
             Config.FontConfig.RefreshFontList();
+            Config.FontConfig.NormalizeFonts();
 
             // Register config
             Singletons.Register(Config);
 
             // Initialize Fonts
-            Singletons.Register(new FontsManager(pluginInterface.UiBuilder, Config.FontConfig.Fonts.Values));
+            Singletons.Register(new FontsManager(PluginInterface.UiBuilder, Config.FontConfig.Fonts.Values));
+
+            ProfileManager.Initialize(configLoad.IsNewInstall);
+
+            // Timeline callbacks may run immediately after subscription, so initialize only after config is ready.
+            TimelineManager.Initialize();
 
             CreateWindows();
+            return Task.CompletedTask;
         }
 
-        public void Dispose()
+        public ValueTask DisposeAsync()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            if (!_loadStarted)
+            {
+                return ValueTask.CompletedTask;
+            }
+
+            _loadStarted = false;
+            if (_configLoaded)
+            {
+                ProfileManager.SaveActive();
+                ConfigHelpers.SaveConfig();
+            }
+
+            TimelineManager.Instance?.Dispose();
+            _windowSystem?.RemoveAllWindows();
+
+            if (_commandRegistered)
+            {
+                ICommandManager.Get().RemoveHandler("/zd");
+                _commandRegistered = false;
+            }
+
+            PluginInterface.UiBuilder.Draw -= Draw;
+            PluginInterface.UiBuilder.OpenConfigUi -= OpenConfigUi;
+
+            if (Singletons.IsRegistered<FontsManager>())
+            {
+                Singletons.Get<FontsManager>().Dispose();
+            }
+
+            _configLoaded = false;
+
+            return ValueTask.CompletedTask;
         }
         private void PluginCommand(string command, string arguments)
         {
+            string input = arguments.Trim();
+            if (string.IsNullOrEmpty(input))
             {
                 ToggleSettingsWindow();
+                return;
+            }
+
+            if (input.Equals("profiles", StringComparison.OrdinalIgnoreCase))
+            {
+                DrawHelper.DrawNotification($"Profiles: {string.Join(", ", ProfileManager.ProfileNames)}");
+                return;
+            }
+
+            string[] commandParts = input.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (commandParts.Length == 0 || !commandParts[0].Equals("profile", StringComparison.OrdinalIgnoreCase))
+            {
+                DrawHelper.DrawNotification("Usage: /zd profile <name> or /zd profile save <name>", NotificationType.Warning);
+                return;
+            }
+
+            string profileArgument = commandParts.Length == 2 ? commandParts[1] : string.Empty;
+            string[] profileParts = profileArgument.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (profileParts.Length > 0 && profileParts[0].Equals("save", StringComparison.OrdinalIgnoreCase))
+            {
+                string profileName = profileParts.Length == 2 ? profileParts[1] : string.Empty;
+                bool saved = !string.IsNullOrEmpty(profileName) && ProfileManager.SaveCurrent(profileName);
+                DrawHelper.DrawNotification(
+                    saved ? $"Saved profile '{profileName}'." : "Usage: /zd profile save <name>",
+                    saved ? NotificationType.Success : NotificationType.Warning);
+                return;
+            }
+
+            bool switched = !string.IsNullOrEmpty(profileArgument) && ProfileManager.Switch(profileArgument);
+            DrawHelper.DrawNotification(
+                switched ? $"Switched to profile '{ProfileManager.ActiveProfile}'." : $"Profile '{profileArgument}' was not found.",
+                switched ? NotificationType.Success : NotificationType.Error);
+        }
+
+        public static void ApplyConfig(ZDsConfig config, bool save = true)
+        {
+            ConfigMigration.Migrate(config);
+            config.GeneralConfig.Preview = false;
+            config.FontConfig.RefreshFontList();
+            config.FontConfig.NormalizeFonts();
+            Config = config;
+            Singletons.Update(config);
+            _configWindow?.ReplaceRootConfig(config);
+
+            if (Singletons.IsRegistered<FontsManager>())
+            {
+                Singletons.Get<FontsManager>().UpdateFonts(config.FontConfig.Fonts.Values);
+            }
+
+            if (save)
+            {
+                ConfigHelpers.SaveConfig(config);
             }
         }
 
@@ -153,17 +210,26 @@ namespace ZDs
         {
             _configWindow = new ConfigWindow($"ZDs v{Version}", new Vector2(700, 700));
             _timelineWindow = new TimelineWindow("ZDS_Timeline");
+            _setupWindow = new TimelineSetupWindow();
 
             _windowSystem = new WindowSystem("ZDs_Windows");
             _windowSystem.AddWindow(_configWindow);
             _windowSystem.AddWindow(_timelineWindow);
+            _windowSystem.AddWindow(_setupWindow);
         }
 
         private void Draw()
         {
-            if (Config == null || ObjectTable.LocalPlayer == null) return;
+            if (Config == null) return;
 
-            UpdateTimeline();
+            if (IObjectTable.Get().LocalPlayer != null)
+            {
+                UpdateTimeline();
+            }
+            else if (_timelineWindow != null)
+            {
+                _timelineWindow.IsOpen = false;
+            }
 
             Singletons.Get<ClipRectsHelper>().Update();
 
@@ -172,26 +238,27 @@ namespace ZDs
 
         public static void ToggleSettingsWindow()
         {
-            _configWindow.ToggleWindow();
+            _configWindow?.ToggleWindow();
+        }
+
+        public static void ShowSetupAfterReset()
+        {
+            _configWindow?.CloseForReset();
+            _setupWindow?.OpenForCurrentConfig();
         }
 
         private void UpdateTimeline()
         {
             bool show = Config.GeneralConfig.ShowTimeline;
 
-            if (show == null)
-            {
-                return;
-            }
-
             if (show)
             {
-                if (Config.GeneralConfig.ShowTimelineOnlyInCombat && !Condition[ConditionFlag.InCombat])
+                if (Config.GeneralConfig.ShowTimelineOnlyInCombat && !ICondition.Get()[ConditionFlag.InCombat])
                 {
                     show = false;
                 }
 
-                if (Config.GeneralConfig.ShowTimelineOnlyInDuty && !Condition[ConditionFlag.BoundByDuty])
+                if (Config.GeneralConfig.ShowTimelineOnlyInDuty && !ICondition.Get()[ConditionFlag.BoundByDuty])
                 {
                     show = false;
                 }
@@ -220,31 +287,12 @@ namespace ZDs
                 }
                 catch (Exception ex)
                 {
-                    Singletons.Get<IPluginLog>().Warning($"Error loading changelog: {ex}");
+                    IPluginLog.Get().Warning(ex, "Error loading changelog.");
                 }
             }
 
             return string.Empty;
         }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposing)
-            {
-                return;
-            }
-
-            ConfigHelpers.SaveConfig();
-
-            TimelineManager.Instance?.Dispose();
-
-            _windowSystem.RemoveAllWindows();
-
-            CommandManager.RemoveHandler("/zd");
-
-            UiBuilder.Draw -= Draw;
-            UiBuilder.OpenConfigUi -= OpenConfigUi;
-            UiBuilder.FontAtlas.BuildFontsAsync();
-        }
     }
 }

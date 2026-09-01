@@ -1,3 +1,22 @@
+# 1.2.0.0
+- Reworked the timeline layout and configuration
+- Added built-in presets and a first-time setup window
+- Added profiles and commands to switch between them
+- Added profile import/export and a full reset option
+- Existing settings are saved as a profile before choosing a new setup
+- Added items, duty actions, Lost Actions, Phantom Actions, DoTs, debuffs and buffs to the timeline
+- Added filters for abilities, items and effects
+- Added separate lanes, new overlap options, long cooldown handling and a short ready animation
+- Added Classic, split-time and full cooldown movement modes
+- Added charge pips, next charge previews, priority abilities and optional game sounds
+- Added GCD, cast and buff markers and improved grid labels
+- Added Fade, Pop, Pulse, Breathe and Ants finish animations
+- Added game fonts, separate font sizes and text shadows for timeline labels
+- Added BRD DoT combining and target letters for multi-DoT tracking
+- Improved cooldown and charge tracking, including abilities which reduce another ability's cooldown
+- Fixed cooldown swipes and borders occasionally leaving one-pixel gaps
+- Fixed fonts sometimes not being added and several timeline errors
+
 # 1.1.0.6
 - Update to API15
 

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Interface;
+using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using ZDs.Helpers;
 using Newtonsoft.Json;
 using Lumina.Excel;
@@ -24,6 +26,7 @@ namespace ZDs.Config
         public bool FilterAbilities = false;
         public SortedList<string, uint> FilteredAbilities = new SortedList<string, uint>();
         public int FilterMode = 0;
+        public AbilityPriorityConfig PriorityRules = new();
         
         private string _input = "";
 
@@ -38,23 +41,26 @@ namespace ZDs.Config
             37018   // Umbral Draw
         ];
 
-        public IConfigPage GetDefault() => new GeneralConfig();
+        public IConfigPage GetDefault() => new AbilitiesConfig();
 
         public void DrawConfig(Vector2 size, float padX, float padY, bool border = true)
         {
-            if (ImGui.BeginChild($"##{this.Name}", new Vector2(size.X, size.Y), border))
+            using var child = ImRaii.Child($"##{this.Name}", new Vector2(size.X, size.Y), border);
+            if (!child)
             {
+                return;
+            }
+
                 bool changed = false;
-                ImGui.Checkbox("Ignore abilities with a recast time below: ", ref IgnoreAbilitiesBelow);
-                DrawHelper.SetTooltip("Abilities with a recast time less than or equal to this value will not be shown on the timeline. Useful for filtering out spammable or very short cooldown abilities.");
+                ImGui.Checkbox("Ignore short cooldowns", ref IgnoreAbilitiesBelow);
+                DrawHelper.SetTooltip("Hide abilities at or below this recast time.");
 
                 if (IgnoreAbilitiesBelow)
                 {
                     DrawHelper.DrawNestIndicator(1);
                     ImGui.DragFloat("##GCD", ref IgnoreAbilitiesRecast, 0.01f, 0, 1000);
                 }
-                ImGui.NewLine();
-                
+
                 var flags =
                     ImGuiTableFlags.RowBg |
                     ImGuiTableFlags.Borders |
@@ -63,36 +69,40 @@ namespace ZDs.Config
                     ImGuiTableFlags.ScrollY |
                     ImGuiTableFlags.SizingFixedSame;
 
-                var sheet = Plugin.DataManager.GetExcelSheet<Action>();
+                var sheet = IDataManager.Get().GetExcelSheet<Action>();
                 
                 var iconSize = new Vector2(30, 30);
                 var indexToRemove = -1;
 
-                if (ImGui.BeginChild("Filter Abilities", new Vector2(0, 360), false, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
+                float filterHeight = FilterAbilities ? 360f : ImGui.GetFrameHeightWithSpacing();
+                using (var filterChild = ImRaii.Child("Filter Abilities", new Vector2(0, filterHeight), false, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
                 {
+                    if (filterChild)
+                    {
                     ImGui.Checkbox("Filter Abilities", ref FilterAbilities);
-                    DrawHelper.SetTooltip("Enables filtering of abilities displayed on the timeline using either a blacklist or a whitelist, configurable below.");
+                    DrawHelper.SetTooltip("Limit which abilities appear.");
 
                     if (FilterAbilities)
                     {
                         DrawHelper.DrawNestIndicator(1);
-                        ImGui.RadioButton("Blacklist", ref FilterMode, 0);
+                        ImGui.RadioButton("Hide listed", ref FilterMode, 0);
                         ImGui.SameLine();
-                        ImGui.RadioButton("Whitelist", ref FilterMode, 1);
+                        ImGui.RadioButton("Only show listed", ref FilterMode, 1);
 
                         ImGui.Text("Type an ability name or ID");
 
-                        ImGui.PushItemWidth(300);
+                        using var itemWidth = ImRaii.ItemWidth(300);
                         if (ImGui.InputText("", ref _input, 64, ImGuiInputTextFlags.EnterReturnsTrue))
                         {
                             changed |= AddNewEntry(_input, sheet);
                             ImGui.SetKeyboardFocusHere(-1);
                         }
-                        DrawHelper.SetTooltip("Enter the exact name or ID of an ability (e.g., 'Sprint' or '3'). Press Enter or click the '+' button to add it to the list.");
+                        DrawHelper.SetTooltip("Enter an exact ability name or ID.");
 
                         // add
                         ImGui.SameLine();
-                        ImGui.PushFont(UiBuilder.IconFont);
+                        using (ImRaii.PushFont(UiBuilder.IconFont))
+                        {
                         if (ImGui.Button(FontAwesomeIcon.Plus.ToIconString(), new Vector2(0, 0)))
                         {
                             changed |= AddNewEntry(_input, sheet);
@@ -107,37 +117,42 @@ namespace ZDs.Config
                             ImGui.SetClipboardText(ExportList());
                             ImGui.OpenPopup("export_succes_popup");
                         }
-                        ImGui.PopFont();
+                        }
                         DrawHelper.SetTooltip("Export List to Clipboard");
 
                         // export success popup
-                        if (ImGui.BeginPopup("export_succes_popup"))
+                        using (var popup = ImRaii.Popup("export_succes_popup"))
                         {
-                            ImGui.Text("List exported to clipboard!");
-                            ImGui.EndPopup();
+                            if (popup)
+                            {
+                                ImGui.Text("List exported to clipboard!");
+                            }
                         }
 
                         // import
                         ImGui.SameLine();
-                        ImGui.PushFont(UiBuilder.IconFont);
+                        using (ImRaii.PushFont(UiBuilder.IconFont))
+                        {
                         if (ImGui.Button(FontAwesomeIcon.Download.ToIconString(), new Vector2(0, 0)))
                         {
                             _importString = ImGui.GetClipboardText();
                         }
-                        ImGui.PopFont();
+                        }
                         DrawHelper.SetTooltip("Import List from Clipboard");
 
                         // clear
                         ImGui.SameLine();
-                        ImGui.PushFont(UiBuilder.IconFont);
+                        using (ImRaii.PushFont(UiBuilder.IconFont))
+                        {
                         if (ImGui.Button(FontAwesomeIcon.Trash.ToIconString(), new Vector2(0, 0)))
                         {
                             _clearingList = true;
                         }
-                        ImGui.PopFont();
+                        }
                         DrawHelper.SetTooltip("Clear List");
 
-                        if (ImGui.BeginTable("table", 4, flags, new Vector2(583, FilteredAbilities.Count > 0 ? 200 : 40)))
+                        using var table = ImRaii.Table("table", 4, flags, new Vector2(583, FilteredAbilities.Count > 0 ? 200 : 40));
+                        if (table)
                         {
                             ImGui.TableSetupColumn("Icon", ImGuiTableColumnFlags.WidthFixed, 0, 0);
                             ImGui.TableSetupColumn("ID", ImGuiTableColumnFlags.WidthFixed, 0, 1);
@@ -162,7 +177,7 @@ namespace ZDs.Config
                                     continue;
                                 }
 
-                                ImGui.PushID(i.ToString());
+                                using var idScope = ImRaii.PushId(i);
                                 ImGui.TableNextRow(ImGuiTableRowFlags.None, iconSize.Y);
 
                                 // icon
@@ -187,25 +202,21 @@ namespace ZDs.Config
                                 // remove
                                 if (ImGui.TableSetColumnIndex(3))
                                 {
-                                    ImGui.PushFont(UiBuilder.IconFont);
-                                    ImGui.PushStyleColor(ImGuiCol.Button, Vector4.Zero);
-                                    ImGui.PushStyleColor(ImGuiCol.ButtonActive, Vector4.Zero);
-                                    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, Vector4.Zero);
+                                    using var iconFont = ImRaii.PushFont(UiBuilder.IconFont);
+                                    using var colors = ImRaii.PushColor(ImGuiCol.Button, Vector4.Zero)
+                                        .Push(ImGuiCol.ButtonActive, Vector4.Zero)
+                                        .Push(ImGuiCol.ButtonHovered, Vector4.Zero);
                                     if (ImGui.Button(FontAwesomeIcon.Trash.ToIconString(), iconSize))
                                     {
                                         changed = true;
                                         indexToRemove = i;
                                     }
-                                    ImGui.PopFont();
-                                    ImGui.PopStyleColor(3);
                                 }
-                                ImGui.PopID();
                             }
-
-                            ImGui.EndTable();
                         }
                         ImGui.Text("\u2002 \u2002");
                         ImGui.SameLine();
+                    }
                     }
                 }
                 
@@ -213,8 +224,12 @@ namespace ZDs.Config
                 {
                     FilteredAbilities.RemoveAt(indexToRemove);
                 }
+
+                if (sheet != null)
+                {
+                    PriorityRules.Draw(sheet);
+                }
                 
-                ImGui.EndChild();
                 // error message
                 if (_errorMessage != null)
                 {
@@ -263,9 +278,6 @@ namespace ZDs.Config
                         _clearingList = false;
                     }
                 }
-            }
-
-            ImGui.EndChild();
         }
         
         private string KeyName(Action status)

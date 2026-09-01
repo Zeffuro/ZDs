@@ -8,7 +8,7 @@ namespace ZDs.Config
     [JsonObject]
     public class ZDsConfig : IConfigurable, IPluginDisposable
     {
-        public bool FirstLoad = true;
+        public int ConfigSchemaVersion;
         public string Version => Plugin.Version;
         public string Name 
         { 
@@ -18,7 +18,11 @@ namespace ZDs.Config
 
         [JsonIgnore]
         private AboutPage AboutPage { get; }
+        [JsonIgnore]
+        private ProfilesConfig ProfilesConfig { get; }
         public GeneralConfig GeneralConfig { get; init; }
+        public TimelineLayoutConfig LayoutConfig { get; init; }
+        public SourcesConfig SourcesConfig { get; init; }
         public AbilitiesConfig AbilitiesConfig { get; init; }
         public CooldownConfig CooldownConfig { get; init; }
         public GridConfig GridConfig { get; init; }
@@ -27,10 +31,13 @@ namespace ZDs.Config
         public ZDsConfig()
         {
             GeneralConfig = new GeneralConfig();
+            LayoutConfig = new TimelineLayoutConfig();
+            SourcesConfig = new SourcesConfig();
             AbilitiesConfig = new AbilitiesConfig();
             CooldownConfig = new CooldownConfig();
             GridConfig = new GridConfig();
             FontConfig = new FontConfig();
+            ProfilesConfig = new ProfilesConfig();
             AboutPage = new AboutPage();
         }
 
@@ -52,10 +59,13 @@ namespace ZDs.Config
         public IEnumerable<IConfigPage> GetConfigPages()
         {
             yield return GeneralConfig;
+            yield return LayoutConfig;
+            yield return SourcesConfig;
             yield return AbilitiesConfig;
             yield return CooldownConfig;
             yield return GridConfig;
             yield return FontConfig;
+            yield return ProfilesConfig;
             yield return AboutPage;
         }
 

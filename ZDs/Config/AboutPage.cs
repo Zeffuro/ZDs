@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Text.Json.Serialization;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using ZDs.Helpers;
 
 namespace ZDs.Config
@@ -16,18 +17,24 @@ namespace ZDs.Config
 
         public void DrawConfig(Vector2 size, float padX, float padY, bool border = true)
         {
-            if (ImGui.BeginChild("##AboutPage", new Vector2(size.X, size.Y), border))
+            using var child = ImRaii.Child("##AboutPage", new Vector2(size.X, size.Y), border);
+            if (!child)
             {
-                ImGui.Text("Changelog");
-                Vector2 changeLogSize = new(size.X - padX * 2, size.Y - ImGui.GetCursorPosY() - padY - 30);
+                return;
+            }
 
-                if (ImGui.BeginChild("##Changelog", changeLogSize, true))
+            ImGui.Text("Changelog");
+            Vector2 changeLogSize = new(size.X - padX * 2, size.Y - ImGui.GetCursorPosY() - padY - 30);
+
+                using (var changelog = ImRaii.Child("##Changelog", changeLogSize, true))
                 {
-                    ImGui.Text(Plugin.Changelog);
-                    ImGui.EndChild();
+                    if (changelog)
+                    {
+                        ImGui.Text(Plugin.Changelog);
+                    }
                 }
 
-                ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 0);
+                using var style = ImRaii.PushStyle(ImGuiStyleVar.FrameRounding, 0);
                 Vector2 buttonSize = new((size.X - padX * 2 - padX * 2) / 3, 30 - padY * 2);
                 if (ImGui.Button("Github", buttonSize))
                 {
@@ -40,10 +47,6 @@ namespace ZDs.Config
                     Dalamud.Utility.Util.OpenLink("https://ko-fi.com/Zeffuro");
                 }
 
-                ImGui.PopStyleVar();
-            }
-
-            ImGui.EndChild();
         }
     }
 }

@@ -5,6 +5,7 @@ using Dalamud.Bindings.ImGui;
 using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.ImGuiNotification;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.Excel;
@@ -30,13 +31,15 @@ namespace ZDs.Helpers
                 ImGui.SameLine();
             }
 
-            ImGui.PushFont(UiBuilder.IconFont);
-            if (ImGui.Button(icon.ToIconString(), size ?? Vector2.Zero))
+            using (ImRaii.PushFont(UiBuilder.IconFont))
             {
-                clickAction();
+                string buttonId = !string.IsNullOrEmpty(help) ? help : !string.IsNullOrEmpty(label) ? label : icon.ToString();
+                if (ImGui.Button($"{icon.ToIconString()}##{buttonId}", size ?? Vector2.Zero))
+                {
+                    clickAction();
+                }
             }
 
-            ImGui.PopFont();
             if (!string.IsNullOrEmpty(help) && ImGui.IsItemHovered())
             {
                 ImGui.SetTooltip(help);
@@ -62,11 +65,13 @@ namespace ZDs.Helpers
 
             if (drawBorder)
             {
-                drawList.AddRect(position, position + size, ImGui.ColorConvertFloat4ToU32(Config.CooldownConfig.BorderColor));
+                Vector4 borderColor = Config.CooldownConfig.BorderColor;
+                borderColor.W *= alpha;
+                drawList.AddRect(position, position + size, ImGui.ColorConvertFloat4ToU32(borderColor));
             }
         }
         
-        public static void DrawConditionalIcon(uint iconId, Vector2 position, Vector2 size, bool drawBorder, float alpha, ImDrawListPtr drawList, bool respectClipping)
+        public static void DrawConditionalIcon(uint iconId, Vector2 position, Vector2 size, bool drawBorder, float alpha, ImDrawListPtr drawList, bool respectClipping, bool cropIcon = false)
         {
             if (respectClipping && Config.GeneralConfig.ShouldClip)
             {
@@ -83,16 +88,28 @@ namespace ZDs.Helpers
             if (texture == null) return;
             
             uint color = ImGui.ColorConvertFloat4ToU32(new Vector4(1, 1, 1, alpha));
+            (Vector2 uv0, Vector2 uv1) = cropIcon
+                ? GetTexCoordinates(texture, size)
+                : (Vector2.Zero, Vector2.One);
             
-            ImGui.PushClipRect(Vector2.NegativeInfinity, Vector2.One * float.MaxValue, false);
-            drawList.AddImage(texture.Handle, position, position + size, Vector2.Zero, Vector2.One, color);
+            using var clip = new ImGuiClipRectScope(Vector2.NegativeInfinity, Vector2.One * float.MaxValue);
+            drawList.AddImage(texture.Handle, position, position + size, uv0, uv1, color);
             
             if (drawBorder)
             {
-                drawList.AddRect(position, position + size, ImGui.ColorConvertFloat4ToU32(Config.CooldownConfig.BorderColor));
+                Vector4 borderColor = Config.CooldownConfig.BorderColor;
+                borderColor.W *= alpha;
+                drawList.AddRect(position, position + size, ImGui.ColorConvertFloat4ToU32(borderColor));
             }
             
-            ImGui.PopClipRect();
+        }
+
+        public static void DrawIconBorder(Vector2 position, Vector2 size, float alpha, ImDrawListPtr drawList)
+        {
+            Vector4 borderColor = Config.CooldownConfig.BorderColor;
+            borderColor.W *= alpha;
+            using var clip = new ImGuiClipRectScope(Vector2.NegativeInfinity, Vector2.One * float.MaxValue);
+            drawList.AddRect(position, position + size, ImGui.GetColorU32(borderColor));
         }
         
         public static void DrawIcon<T>(dynamic row, Vector2 position, Vector2 size, bool drawBorder, bool cropIcon) where T : struct, IExcelRow<T>
@@ -115,6 +132,11 @@ namespace ZDs.Helpers
         // By fel1n3 https://github.com/DelvUI/DelvUI/pull/1235
         public static void DrawIconCooldown(Vector2 position, Vector2 size, double elapsed, double total, ImDrawListPtr drawList, bool respectClipping = true)
         {
+            if (total <= 0)
+            {
+                return;
+            }
+
             if (respectClipping && Config.GeneralConfig.ShouldClip)
             {
                 var clipHelper = Singletons.Get<ClipRectsHelper>();
@@ -124,21 +146,26 @@ namespace ZDs.Helpers
                     return;
             }
             
-            double completion = elapsed / total;
+            double completion = Math.Clamp(elapsed / total, 0d, 1d);
             int segments = (int)Math.Ceiling(completion * 4);
 
-            Vector2 center = position + size / 2;
+            Vector2 minimum = Vector2.Round(position);
+            Vector2 maximum = Vector2.Round(position + size);
+            Vector2 alignedSize = maximum - minimum;
+            Vector2 center = minimum + alignedSize / 2;
             
             //Define vertices for top, left, bottom, and right points relative to the center.
             Vector2[] vertices =
             [
-                center with {Y = center.Y - size.Y}, // Top
-                center with {X = center.X - size.X}, // Left
-                center with {Y = center.Y + size.Y}, // Bottom
-                center with {X = center.X + size.X}  // Right
+                center with {Y = center.Y - alignedSize.Y}, // Top
+                center with {X = center.X - alignedSize.X}, // Left
+                center with {Y = center.Y + alignedSize.Y}, // Bottom
+                center with {X = center.X + alignedSize.X}  // Right
             ];
             
-            ImGui.PushClipRect(position, position + size, false);
+            using var clip = new ImGuiClipRectScope(minimum, maximum);
+            ImDrawListFlags originalFlags = drawList.Flags;
+            drawList.Flags &= ~ImDrawListFlags.AntiAliasedFill;
             for (int i = 0; i < segments; i++)
             {
                 Vector2 v2 = vertices[i % 4];
@@ -151,12 +178,65 @@ namespace ZDs.Helpers
                     float cos = MathF.Cos(angle);
                     float sin = MathF.Sin(angle);
 
-                    v3 = center + Vector2.Multiply(new Vector2(sin,-cos), size);
+                    v3 = center + Vector2.Multiply(new Vector2(sin,-cos), alignedSize);
                 }
 
                 drawList.AddTriangleFilled(center, v3, v2, 0xCC000000);
             }
-            ImGui.PopClipRect();
+            drawList.Flags = originalFlags;
+        }
+
+        public static void DrawAnts(
+            Vector2 position,
+            Vector2 size,
+            uint color,
+            float thickness,
+            float dashLength,
+            float speed,
+            ImDrawListPtr drawList)
+        {
+            float width = Math.Max(1f, size.X);
+            float height = Math.Max(1f, size.Y);
+            float dash = Math.Max(1f, dashLength);
+            float gap = dash;
+            float cycle = dash + gap;
+            float phase = (float)ImGui.GetTime() * speed * 24f;
+
+            using var clip = new ImGuiClipRectScope(Vector2.NegativeInfinity, Vector2.One * float.MaxValue);
+            DrawDashedEdge(drawList, position, position + new Vector2(width, 0), width, 0, phase, dash, cycle, color, thickness);
+            DrawDashedEdge(drawList, position + new Vector2(width, 0), position + size, height, width, phase, dash, cycle, color, thickness);
+            DrawDashedEdge(drawList, position + size, position + new Vector2(0, height), width, width + height, phase, dash, cycle, color, thickness);
+            DrawDashedEdge(drawList, position + new Vector2(0, height), position, height, width * 2 + height, phase, dash, cycle, color, thickness);
+        }
+
+        private static void DrawDashedEdge(
+            ImDrawListPtr drawList,
+            Vector2 start,
+            Vector2 end,
+            float length,
+            float pathOffset,
+            float phase,
+            float dashLength,
+            float cycle,
+            uint color,
+            float thickness)
+        {
+            float patternOffset = (pathOffset + phase) % cycle;
+            if (patternOffset < 0)
+            {
+                patternOffset += cycle;
+            }
+
+            Vector2 direction = (end - start) / length;
+            for (float dashStart = -patternOffset; dashStart < length; dashStart += cycle)
+            {
+                float visibleStart = Math.Max(0, dashStart);
+                float visibleEnd = Math.Min(length, dashStart + dashLength);
+                if (visibleEnd > visibleStart)
+                {
+                    drawList.AddLine(start + direction * visibleStart, start + direction * visibleEnd, color, thickness);
+                }
+            }
         }
         
         public static (Vector2, Vector2) GetTexCoordinates(IDalamudTextureWrap texture, Vector2 size, bool cropIcon = true)
@@ -196,7 +276,7 @@ namespace ZDs.Helpers
                 Minimized = false
             };
 
-            Plugin.NotificationManager.AddNotification(notification);
+            INotificationManager.Get().AddNotification(notification);
         }
         
         public static void DrawOutlinedText(string text, Vector2 pos, uint color, uint outlineColor, ImDrawListPtr drawList, int thickness = 1, bool respectClipping = true)
@@ -211,7 +291,7 @@ namespace ZDs.Helpers
                     return;  // Skip drawing because it would be clipped
             }
             
-            ImGui.PushClipRect(Vector2.NegativeInfinity, Vector2.One * float.MaxValue, false);
+            using var clip = new ImGuiClipRectScope(Vector2.NegativeInfinity, Vector2.One * float.MaxValue);
             // outline
             for (int i = 1; i < thickness + 1; i++)
             {
@@ -227,12 +307,55 @@ namespace ZDs.Helpers
 
             // text
             drawList.AddText(new Vector2(pos.X, pos.Y), color, text);
-            ImGui.PopClipRect();
         }
 
-        public static void DrawShadowText(string text, Vector2 pos, uint color, uint shadowColor, ImDrawListPtr drawList, int offset = 1, int thickness = 1)
+        public static void DrawLabelText(
+            string text,
+            Vector2 pos,
+            uint color,
+            uint effectColor,
+            LabelTextEffect effect,
+            ImDrawListPtr drawList,
+            int shadowOffset = 1,
+            bool respectClipping = true)
         {
-            // TODO: Add parameter to allow to choose a direction
+            switch (effect)
+            {
+                case LabelTextEffect.Outline:
+                    DrawOutlinedText(text, pos, color, effectColor, drawList, respectClipping: respectClipping);
+                    break;
+                case LabelTextEffect.Shadow:
+                    DrawShadowText(text, pos, color, effectColor, drawList, shadowOffset, respectClipping: respectClipping);
+                    break;
+                default:
+                    using (new ImGuiClipRectScope(Vector2.NegativeInfinity, Vector2.One * float.MaxValue))
+                    {
+                        drawList.AddText(pos, color, text);
+                    }
+                    break;
+            }
+        }
+
+        public static void DrawShadowText(
+            string text,
+            Vector2 pos,
+            uint color,
+            uint shadowColor,
+            ImDrawListPtr drawList,
+            int offset = 1,
+            int thickness = 1,
+            bool respectClipping = true)
+        {
+            if (respectClipping && Config.GeneralConfig.ShouldClip)
+            {
+                ClipRect? clipRect = Singletons.Get<ClipRectsHelper>().GetClipRectForArea(pos, ImGui.CalcTextSize(text));
+                if (clipRect.HasValue)
+                {
+                    return;
+                }
+            }
+
+            using var clip = new ImGuiClipRectScope(Vector2.NegativeInfinity, Vector2.One * float.MaxValue);
 
             // Shadow
             for (int i = 0; i < thickness; i++)
@@ -270,17 +393,22 @@ namespace ZDs.Helpers
 
             bool p_open = true; // i've no idea what this is used for
 
-            if (ImGui.BeginPopupModal(title + " ##ZDs_Modal", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
+            using var popup = ImRaii.PopupModal(title + " ##ZDs_Modal", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove);
+            if (popup)
             {
                 float width = 300;
                 float height = Math.Min((ImGui.CalcTextSize(" ").Y + 5) * textLines.Count(), 240);
 
-                ImGui.BeginChild("confirmation_modal_message", new Vector2(width, height), false);
-                foreach (string text in textLines)
+                using (var child = ImRaii.Child("confirmation_modal_message", new Vector2(width, height), false))
                 {
-                    ImGui.Text(text);
+                    if (child)
+                    {
+                        foreach (string text in textLines)
+                        {
+                            ImGui.Text(text);
+                        }
+                    }
                 }
-                ImGui.EndChild();
 
                 ImGui.NewLine();
 
@@ -299,7 +427,6 @@ namespace ZDs.Helpers
                     didClose = true;
                 }
 
-                ImGui.EndPopup();
             }
             // close button on nav
             else
@@ -326,7 +453,8 @@ namespace ZDs.Helpers
             ImGui.SetNextWindowPos(center, ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
 
             bool p_open = true; // i've no idea what this is used for
-            if (ImGui.BeginPopupModal("Error ##ZDs_Modal", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
+            using var popup = ImRaii.PopupModal("Error ##ZDs_Modal", ref p_open, ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove);
+            if (popup)
             {
                 ImGui.Text(message);
                 ImGui.NewLine();
@@ -339,7 +467,6 @@ namespace ZDs.Helpers
                     didClose = true;
                 }
 
-                ImGui.EndPopup();
             }
             // close button on nav
             else
@@ -355,7 +482,7 @@ namespace ZDs.Helpers
             return didClose;
         }
         
-        public static void DrawFontSelector(string label, ref string fontKey, ref int fontId)
+        public static void DrawFontSelector(string label, ref string fontFamily, ref int fontSize)
         {
             string[] fontOptions = FontsManager.GetFontList();
             if (fontOptions.Length == 0)
@@ -363,12 +490,14 @@ namespace ZDs.Helpers
                 return;
             }
 
-            if (!FontsManager.ValidateFont(fontOptions, fontId, fontKey))
+            fontFamily = FontsManager.NormalizeFontFamily(fontFamily);
+            int fontId = FontsManager.GetFontIndex(fontFamily);
+            if (!FontsManager.ValidateFont(fontOptions, fontId, fontFamily))
             {
                 fontId = 0;
                 for (int i = 0; i < fontOptions.Length; i++)
                 {
-                    if (fontKey.Equals(fontOptions[i]))
+                    if (fontFamily.Equals(fontOptions[i]))
                     {
                         fontId = i;
                     }
@@ -376,7 +505,46 @@ namespace ZDs.Helpers
             }
 
             ImGui.Combo(label, ref fontId, fontOptions, fontOptions.Length);
-            fontKey = fontOptions[fontId];
+            fontFamily = fontOptions[fontId];
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(90);
+            ImGui.DragInt($"Size##{label}", ref fontSize, 1, 1, 200);
+        }
+
+        public static void DrawLabelTextConfig(string id, LabelTextConfig config, int depth = 0, string colorLabel = "Text Color")
+        {
+            DrawNested(depth);
+            DrawFontSelector($"Font##{id}", ref config.FontFamily, ref config.FontSize);
+
+            DrawNested(depth);
+            DrawColorSelector($"{colorLabel}##{id}", ref config.Color);
+
+            DrawNested(depth);
+            int selectedEffect = (int)config.Effect;
+            if (ImGui.Combo($"Text Effect##{id}", ref selectedEffect, ["Outline", "Shadow", "None"], 3))
+            {
+                config.Effect = (LabelTextEffect)selectedEffect;
+            }
+
+            if (config.Effect != LabelTextEffect.None)
+            {
+                DrawNestIndicator(depth + 1);
+                DrawColorSelector($"Effect Color##{id}", ref config.EffectColor);
+            }
+
+            if (config.Effect == LabelTextEffect.Shadow)
+            {
+                DrawNestIndicator(depth + 1);
+                ImGui.DragInt($"Shadow Offset##{id}", ref config.ShadowOffset, 1, 1, 8);
+            }
+        }
+
+        private static void DrawNested(int depth)
+        {
+            if (depth > 0)
+            {
+                DrawNestIndicator(depth);
+            }
         }
         
         public static void DrawNestIndicator(int depth)
